@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { APP_NAME } from "@/lib/constants";
 import ModeToggle from "./module-toggle";
+import Menu from "./menu";
 
 const Header = () => {
   return (
@@ -36,6 +37,7 @@ const Header = () => {
             </Link>
           </Button>
         </div>
+        <Menu />
       </div>
     </header>
   );
