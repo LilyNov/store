@@ -15,7 +15,6 @@ export const metadata: Metadata = {
   title: "Sign In",
 };
 import CredentialsSignInForm from "./credentials-signin-form";
-import { auth0 } from "@/lib/auth0";
 
 const SignIn = async () => {
   const session = await auth0.getSession();

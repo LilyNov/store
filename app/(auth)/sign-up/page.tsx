@@ -9,27 +9,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { APP_NAME } from "@/lib/constants";
-import { redirect } from "next/navigation";
-import { auth0 } from "@/lib/auth0";
 
 export const metadata: Metadata = {
   title: "Sign Up",
 };
 
-const SignUp = async (props: {
-  searchParams: Promise<{
-    callbackUrl: string;
-  }>;
-}) => {
-  const searchParams = await props.searchParams;
-
-  const { callbackUrl } = searchParams;
-  const session = await auth0.getSession();
-
-  if (session) {
-    return redirect(callbackUrl || "/");
-  }
-
+const SignUp = async () => {
   return (
     <div className="w-full max-w-md mx-auto">
       <Card>
