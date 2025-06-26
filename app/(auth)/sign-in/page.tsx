@@ -1,8 +1,6 @@
 import { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-// import { redirect } from 'next/navigation';
-// import { auth } from '@/auth';
 import {
   Card,
   CardContent,
@@ -16,10 +14,7 @@ export const metadata: Metadata = {
 };
 import CredentialsSignInForm from "./credentials-signin-form";
 
-const SignIn = async () => {
-  const session = await auth0.getSession();
-  console.log("Session in SignIn page:", session);
-
+const SignIn = () => {
   return (
     <div className="w-full max-w-md mx-auto">
       <Card>

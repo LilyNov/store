@@ -1,4 +1,6 @@
 import { EllipsisVertical, ShoppingCart, UserIcon } from "lucide-react";
+import { auth0 } from "@/lib/auth0";
+
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -10,7 +12,30 @@ import {
 import Link from "next/link";
 import ModeToggle from "./module-toggle";
 
-const Menu = () => {
+const Menu = async () => {
+  const session = await auth0.getSession();
+  const renderLink = () => {
+    if (!session) {
+      return (
+        <>
+          <Link href="/auth/login?screen_hint=signup">
+            <UserIcon />
+            Sign up
+          </Link>
+          <Link href="/auth/login">
+            <UserIcon />
+            Log in
+          </Link>
+        </>
+      );
+    }
+    return (
+      <Link href="/auth/logout">
+        <UserIcon />
+        Log out
+      </Link>
+    );
+  };
   return (
     <>
       <div className="flex justify-end gap-3">
@@ -22,12 +47,7 @@ const Menu = () => {
               Cart
             </Link>
           </Button>
-          <Button asChild>
-            <Link href="/sign-in">
-              <UserIcon />
-              Sign In
-            </Link>
-          </Button>
+          <Button asChild>{renderLink()}</Button>
         </nav>
         <nav className="md:hidden">
           <Sheet>
