@@ -1,5 +1,6 @@
 import { EllipsisVertical, ShoppingCart, UserIcon } from "lucide-react";
 import { auth0 } from "@/lib/auth0";
+import { syncUserWithDatabase } from "@/lib/user-service";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,18 +15,30 @@ import ModeToggle from "./module-toggle";
 
 const Menu = async () => {
   const session = await auth0.getSession();
+  const user = session?.user;
+  console.log("User session:", user);
+
+  // If user is authenticated, sync with our database
+  // The user sync happens automatically when the Menu component loads for an authenticated user
+
+  if (user) {
+    try {
+      if (!user.email) {
+        throw new Error("User email is required");
+      }
+      const userId = await syncUserWithDatabase(user);
+      console.log("User synced with database, ID:", userId);
+    } catch (error) {
+      console.error("Error syncing user with database:", error);
+    }
+  }
+
   const renderLink = () => {
     if (!session) {
       return (
         <>
-          <Link href="/auth/login?screen_hint=signup">
-            <UserIcon />
-            Sign up
-          </Link>
-          <Link href="/auth/login">
-            <UserIcon />
-            Log in
-          </Link>
+          <Link href="/auth/login?screen_hint=signup">Sign up</Link>
+          <Link href="/auth/login">Log in</Link>
         </>
       );
     }
