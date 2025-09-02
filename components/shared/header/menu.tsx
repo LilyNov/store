@@ -1,6 +1,6 @@
 import { EllipsisVertical, ShoppingCart, UserIcon } from "lucide-react";
 import { auth0 } from "@/lib/auth0";
-import { syncUserWithDatabase } from "@/lib/user-service";
+import { syncUserWithDatabase, getUserFromPrisma } from "@/lib/user-service";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,22 +12,38 @@ import {
 } from "@/components/ui/sheet";
 import Link from "next/link";
 import ModeToggle from "./module-toggle";
+import { getAuth0UserMetadata } from "@/lib/auth0-management";
 
 const Menu = async () => {
   const session = await auth0.getSession();
   const user = session?.user;
-  console.log("User session:", user);
 
-  // If user is authenticated, sync with our database
-  // The user sync happens automatically when the Menu component loads for an authenticated user
+  // fetch metadata if we have a user
+  // instead of this, try to save the metadata to the token and then use the whole user data from the token
+  let userMetadata = null;
+  let isAdmin = false;
+  console.log(user?.sub);
 
+  if (user?.sub) {
+    userMetadata = await getAuth0UserMetadata(user.sub);
+
+    // Check if user is admin from the Prisma database
+    if (userMetadata?.user_metadata?.user_id) {
+      const dbUser = await getUserFromPrisma(
+        userMetadata.user_metadata.user_id
+      );
+      console.log("dbUser", dbUser);
+      isAdmin = dbUser?.role === "admin";
+    }
+  }
+
+  // if user is authenticated, sync with database
   if (user) {
     try {
-      if (!user.email) {
-        throw new Error("User email is required");
+      if (!userMetadata?.user_metadata?.user_id) {
+        // If no user ID in metadata, sync with database
+        await syncUserWithDatabase(user);
       }
-      const userId = await syncUserWithDatabase(user);
-      console.log("User synced with database, ID:", userId);
     } catch (error) {
       console.error("Error syncing user with database:", error);
     }
@@ -37,16 +53,36 @@ const Menu = async () => {
     if (!session) {
       return (
         <>
-          <Link href="/auth/login?screen_hint=signup">Sign up</Link>
-          <Link href="/auth/login">Log in</Link>
+          <Button asChild variant="outline" className="mr-2">
+            <Link href="/auth/login?screen_hint=signup">Sign up</Link>
+          </Button>
+
+          <Button asChild variant="outline">
+            <Link href="/auth/login">Log in</Link>
+          </Button>
         </>
       );
     }
     return (
-      <Link href="/auth/logout">
-        <UserIcon />
-        Log out
-      </Link>
+      <>
+        {isAdmin && (
+          <Button asChild variant="outline" className="mr-2">
+            <Link href="/manage">
+              <UserIcon className="mr-2 h-4 w-4" />
+              Manage users
+            </Link>
+          </Button>
+        )}
+        <Button asChild variant="outline" className="mr-2">
+          <Link href="/profile">
+            <UserIcon className="mr-2 h-4 w-4" />
+            My Profile
+          </Link>
+        </Button>
+        <Button asChild>
+          <Link href="/auth/logout">Log out</Link>
+        </Button>
+      </>
     );
   };
   return (
@@ -60,7 +96,7 @@ const Menu = async () => {
               Cart
             </Link>
           </Button>
-          <Button asChild>{renderLink()}</Button>
+          {renderLink()}
         </nav>
         <nav className="md:hidden">
           <Sheet>
@@ -76,12 +112,7 @@ const Menu = async () => {
                   Cart
                 </Link>
               </Button>
-              <Button asChild>
-                <Link href="/sign-in">
-                  <UserIcon />
-                  Sign In
-                </Link>
-              </Button>
+              {renderLink()}
               <SheetDescription></SheetDescription>
             </SheetContent>
           </Sheet>

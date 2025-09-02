@@ -5,6 +5,7 @@ CREATE TABLE "User" (
     "email" TEXT NOT NULL,
     "password" TEXT,
     "role" TEXT NOT NULL DEFAULT 'user',
+    "blocked" INTEGER NOT NULL DEFAULT 0,
     "emailVerified" TIMESTAMP(6),
     "image" TEXT,
     "address" JSON,

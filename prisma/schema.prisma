@@ -37,6 +37,7 @@ model User {
   email         String    @unique(map: "user_email_idx")
   password      String?
   role          String    @default("user")
+  blocked       Int       @default(0)
   emailVerified DateTime? @db.Timestamp(6)
   image         String?
   address       Json?     @db.Json

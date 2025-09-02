@@ -35,3 +35,24 @@ export async function updateAuth0UserMetadata(
     return false;
   }
 }
+
+/**
+ * Retrieves Auth0 user metadata for a specific user
+ * @param auth0UserId Auth0 user ID (sub)
+ * @returns User metadata object or null if error occurs
+ */
+export async function getAuth0UserMetadata(auth0UserId: string) {
+  console.log("Fetching Auth0 user metadata for user ID:", auth0UserId);
+
+  try {
+    const user = await managementClient.users.get({ id: auth0UserId });
+
+    return {
+      user_metadata: user.data.user_metadata || {},
+      app_metadata: user.data.app_metadata || {},
+    };
+  } catch (error) {
+    console.error("Error fetching Auth0 user metadata:", error);
+    return null;
+  }
+}

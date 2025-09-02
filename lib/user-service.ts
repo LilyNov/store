@@ -32,7 +32,7 @@ export async function syncUserWithDatabase(auth0User: User): Promise<string> {
 
   // If the Auth0 user doesn't have our DB user ID in metadata, update it
   try {
-    if (!auth0User.app_metadata?.db_user_id) {
+    if (!auth0User.app_metadata?.user_id) {
       await updateAuth0UserMetadata(auth0User.sub as string, {
         user_id: user.id,
       });
@@ -42,4 +42,22 @@ export async function syncUserWithDatabase(auth0User: User): Promise<string> {
   }
 
   return user.id;
+}
+
+/**
+ * Retrieves a user from the Prisma database by ID
+ */
+export async function getUserFromPrisma(userId: string) {
+  try {
+    const user = await prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+    });
+
+    return user;
+  } catch (error) {
+    console.error("Error retrieving user from database:", error);
+    return null;
+  }
 }
