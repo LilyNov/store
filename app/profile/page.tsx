@@ -12,9 +12,11 @@ import {
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { UserIcon } from "lucide-react";
+import { redirect, RedirectType } from "next/navigation";
 
 export default async function ProfilePage() {
   const session = await auth0.getSession();
+
   const user = session?.user;
 
   // !!! decoded token with user metadata
@@ -35,18 +37,6 @@ export default async function ProfilePage() {
     );
   }
 
-  // get user metadata and database user
-  let dbUser = null;
-
-  //  if we have a user_id in metadata, fetch the user from database
-
-  if (decodedToken.user_id) {
-    dbUser = await getUserFromPrisma(decodedToken.user_id);
-    console.log("Prisma dbUser found:", decodedToken.user_id);
-  } else {
-    dbUser = user;
-  }
-
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -55,6 +45,27 @@ export default async function ProfilePage() {
       .toUpperCase()
       .substring(0, 2);
   };
+  // get user metadata and database user
+  let dbUser = null;
+
+  //  if we have a user_id in metadata, fetch the user from database
+
+  if (decodedToken.user_id) {
+    dbUser = await getUserFromPrisma(decodedToken.user_id);
+  } else {
+    dbUser = user;
+  }
+
+  if (typeof window !== "undefined" && dbUser) {
+    localStorage.setItem("user", JSON.stringify(dbUser));
+  }
+
+  console.log(typeof window);
+
+  if (dbUser?.blocked) {
+    console.log("BLOCKED");
+    redirect("/blocked", RedirectType.replace);
+  }
 
   return (
     <div className="container mx-auto py-10">

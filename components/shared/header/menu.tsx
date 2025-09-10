@@ -14,25 +14,26 @@ import Link from "next/link";
 import ModeToggle from "./module-toggle";
 import { getAuth0UserMetadata } from "@/lib/auth0-management";
 
+// Notify a blocked user
+// in 5 sec auto log out and auto redirect to /
+// if the mouse on the not. modal - pause the count down, if out - continue
+
 const Menu = async () => {
   const session = await auth0.getSession();
   const user = session?.user;
+  console.log(session);
 
   // fetch metadata if we have a user
-  // instead of this, try to save the metadata to the token and then use the whole user data from the token
   let userMetadata = null;
   let isAdmin = false;
-  console.log(user?.sub);
+  let dbUser = null;
 
   if (user?.sub) {
     userMetadata = await getAuth0UserMetadata(user.sub);
 
     // Check if user is admin from the Prisma database
     if (userMetadata?.user_metadata?.user_id) {
-      const dbUser = await getUserFromPrisma(
-        userMetadata.user_metadata.user_id
-      );
-      console.log("dbUser", dbUser);
+      dbUser = await getUserFromPrisma(userMetadata.user_metadata.user_id);
       isAdmin = dbUser?.role === "admin";
     }
   }
@@ -56,13 +57,13 @@ const Menu = async () => {
           <Button asChild variant="outline" className="mr-2">
             <Link href="/auth/login?screen_hint=signup">Sign up</Link>
           </Button>
-
           <Button asChild variant="outline">
             <Link href="/auth/login">Log in</Link>
           </Button>
         </>
       );
     }
+
     return (
       <>
         {isAdmin && (
@@ -73,18 +74,21 @@ const Menu = async () => {
             </Link>
           </Button>
         )}
-        <Button asChild variant="outline" className="mr-2">
-          <Link href="/profile">
-            <UserIcon className="mr-2 h-4 w-4" />
-            My Profile
-          </Link>
-        </Button>
-        <Button asChild>
-          <Link href="/auth/logout">Log out</Link>
-        </Button>
+        <>
+          <Button asChild variant="outline" className="mr-2">
+            <Link href="/profile">
+              <UserIcon className="mr-2 h-4 w-4" />
+              My Profile
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/auth/logout">Log out</Link>
+          </Button>
+        </>
       </>
     );
   };
+
   return (
     <>
       <div className="flex justify-end gap-3">
