@@ -60,8 +60,6 @@ export default async function ProfilePage() {
     localStorage.setItem("user", JSON.stringify(dbUser));
   }
 
-  console.log(typeof window);
-
   if (dbUser?.blocked) {
     console.log("BLOCKED");
     redirect("/blocked", RedirectType.replace);

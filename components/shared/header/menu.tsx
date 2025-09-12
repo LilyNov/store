@@ -14,14 +14,11 @@ import Link from "next/link";
 import ModeToggle from "./module-toggle";
 import { getAuth0UserMetadata } from "@/lib/auth0-management";
 
-// Notify a blocked user
-// in 5 sec auto log out and auto redirect to /
-// if the mouse on the not. modal - pause the count down, if out - continue
+// Use Stripe for payments
 
 const Menu = async () => {
   const session = await auth0.getSession();
   const user = session?.user;
-  console.log(session);
 
   // fetch metadata if we have a user
   let userMetadata = null;
@@ -76,7 +73,7 @@ const Menu = async () => {
         )}
         <>
           <Button asChild variant="outline" className="mr-2">
-            <Link href="/profile">
+            <Link href={dbUser?.blocked ? "/blocked" : "/profile"}>
               <UserIcon className="mr-2 h-4 w-4" />
               My Profile
             </Link>
@@ -95,7 +92,7 @@ const Menu = async () => {
         <nav className="md:flex hidden w-full max-w-xs gap-1">
           <ModeToggle />
           <Button asChild variant="ghost">
-            <Link href="/cart">
+            <Link href={dbUser?.blocked ? "/blocked" : "/cart"}>
               <ShoppingCart />
               Cart
             </Link>
