@@ -1,4 +1,24 @@
 -- CreateTable
+CREATE TABLE "Product" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "category" TEXT NOT NULL,
+    "images" TEXT[],
+    "brand" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "stock" INTEGER NOT NULL,
+    "price" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "rating" DECIMAL(3,2) NOT NULL DEFAULT 0,
+    "numReviews" INTEGER NOT NULL DEFAULT 0,
+    "isFeatured" BOOLEAN NOT NULL DEFAULT false,
+    "banner" TEXT,
+    "createdAt" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Product_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "User" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "name" TEXT NOT NULL DEFAULT 'NO_NAME',
@@ -53,6 +73,21 @@ CREATE TABLE "VerificationToken" (
     CONSTRAINT "VerificationToken_pkey" PRIMARY KEY ("identifier","token")
 );
 
+-- CreateTable
+CREATE TABLE "Cart" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "userId" UUID,
+    "sessionCartId" TEXT NOT NULL,
+    "updatedAt" TIMESTAMP(6) NOT NULL,
+    "createdAt" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "items" JSON[] DEFAULT ARRAY[]::JSON[],
+
+    CONSTRAINT "Cart_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "product_slug_idx" ON "Product"("slug");
+
 -- CreateIndex
 CREATE UNIQUE INDEX "user_email_idx" ON "User"("email");
 
@@ -61,3 +96,6 @@ ALTER TABLE "Account" ADD CONSTRAINT "account_userId_user_id_fk" FOREIGN KEY ("u
 
 -- AddForeignKey
 ALTER TABLE "Session" ADD CONSTRAINT "session_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "Cart" ADD CONSTRAINT "cart_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE NO ACTION;

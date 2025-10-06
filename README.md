@@ -37,7 +37,24 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 # Prisma
 
+---
+
+rm -rf prisma/migrations
+npx prisma migrate reset
+npx prisma migrate dev --name init
 npx prisma generate
+
+# To seed the database (Write/adjust seed before)
+
+npx tsx ./db/seed
+
+---
+
+# Add Prisma migration
+
+npx prisma migrate dev --name add-cart
+
+# To open Prisma Studio
 
 npx prisma studio
 

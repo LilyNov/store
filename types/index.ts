@@ -1,4 +1,8 @@
-import { insertProductSchema } from "@/lib/validators";
+import {
+  insertCartSchema,
+  insertProductSchema,
+  cartItemSchema,
+} from "@/lib/validators";
 import { z } from "zod";
 
 export type Product = z.infer<typeof insertProductSchema> & {
@@ -6,3 +10,32 @@ export type Product = z.infer<typeof insertProductSchema> & {
   rating: string;
   createdAt: Date;
 };
+
+export type CartItem = z.infer<typeof cartItemSchema>;
+
+// Full cart as stored in DB
+export type Cart = z.infer<typeof insertCartSchema>;
+
+// Totals shape (computed, not stored)
+export type CartTotals = {
+  itemsPrice: string;
+  shippingPrice: string;
+  taxPrice: string;
+  totalPrice: string;
+};
+
+// Cart with computed totals (e.g. getMyCartWithTotals)
+export type CartWithTotals = Cart & { totals: CartTotals };
+
+// Flattened variant (legacy components expect itemsPrice directly on cart)
+export type CartWithTotalsFlat = Cart & CartTotals;
+
+// Narrow cart item explicit interface (helps avoid "any")
+export interface CartItemStrict extends CartItem {
+  productId: string;
+  name: string;
+  slug: string;
+  quantity: number;
+  image: string;
+  price: number; // normalized to number in actions layer
+}

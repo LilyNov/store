@@ -21,3 +21,47 @@ export const insertProductSchema = z.object({
   banner: z.string().nullable(),
   price: currency,
 });
+
+// Cart Schemas
+
+export const cartItemSchema = z.object({
+  productId: z.string().min(1, "Product is required"),
+  name: z.string().min(1, "Name is required"),
+  slug: z.string().min(1, "Slug is required"),
+  quantity: z
+    .number()
+    .int()
+    .nonnegative("Quantity must be a non-negative number"),
+  image: z.string().min(1, "Image is required"),
+  price: z
+    .number()
+    .refine(
+      (value) => /^\d+(\.\d{2})?$/.test(Number(value).toFixed(2)),
+      "Price must have exactly two decimal places (e.g., 49.99)"
+    ),
+});
+
+export const insertCartSchema = z.object({
+  items: z.array(cartItemSchema),
+  sessionCartId: z.string().min(1, "Session cart id is required"),
+  userId: z.string().nullable().optional(),
+});
+
+// DB shape (what Prisma returns)
+export const cartDbSchema = insertCartSchema.extend({
+  id: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+// Optional: cart with totals (computed)
+export const cartTotalsSchema = z.object({
+  itemsPrice: z.string(),
+  shippingPrice: z.string(),
+  taxPrice: z.string(),
+  totalPrice: z.string(),
+});
+
+export const cartWithTotalsSchema = cartDbSchema.extend({
+  totals: cartTotalsSchema,
+});
