@@ -202,19 +202,20 @@ const CartTable = ({ cart }: { cart?: CartWithExtras | null }) => {
                         disabled={isPending}
                         variant="outline"
                         type="button"
-                        onClick={() =>
-                          startTransition(async () => {
-                            const res = await removeItemFromCart(
-                              item.productId
-                            );
-                            if (!res.success) {
-                              toast({
-                                variant: "destructive",
-                                description: res.message,
-                              });
-                            }
-                          })
-                        }
+                        onClick={() => {
+                          startTransition(() => {
+                            removeItemFromCart(item.productId).then((res) => {
+                              if (!res.success) {
+                                toast({
+                                  variant: "destructive",
+                                  description: res.message,
+                                });
+                              }
+                              // Refresh to get updated cart state
+                              router.refresh();
+                            });
+                          });
+                        }}
                       >
                         {isPending ? (
                           <Loader className="w-4 h-4  animate-spin" />
@@ -227,17 +228,19 @@ const CartTable = ({ cart }: { cart?: CartWithExtras | null }) => {
                         disabled={isPending}
                         variant="outline"
                         type="button"
-                        onClick={() =>
-                          startTransition(async () => {
-                            const res = await addItemToCart(item);
-                            if (!res.success) {
-                              toast({
-                                variant: "destructive",
-                                description: res.message,
-                              });
-                            }
-                          })
-                        }
+                        onClick={() => {
+                          startTransition(() => {
+                            addItemToCart(item).then((res) => {
+                              if (!res.success) {
+                                toast({
+                                  variant: "destructive",
+                                  description: res.message,
+                                });
+                              }
+                              router.refresh();
+                            });
+                          });
+                        }}
                       >
                         {isPending ? (
                           <Loader className="w-4 h-4  animate-spin" />
@@ -254,19 +257,19 @@ const CartTable = ({ cart }: { cart?: CartWithExtras | null }) => {
                             size="sm"
                             variant="outline"
                             disabled={isPending}
-                            onClick={() =>
-                              startTransition(async () => {
-                                const res = await saveItemForLater(
-                                  item.productId
-                                );
-                                if (!res.success) {
-                                  toast({
-                                    variant: "destructive",
-                                    description: res.message,
-                                  });
-                                }
-                              })
-                            }
+                            onClick={() => {
+                              startTransition(() => {
+                                saveItemForLater(item.productId).then((res) => {
+                                  if (!res.success) {
+                                    toast({
+                                      variant: "destructive",
+                                      description: res.message,
+                                    });
+                                  }
+                                  router.refresh();
+                                });
+                              });
+                            }}
                           >
                             <Bookmark className="w-4 h-4" />
                             <span className="sr-only">Save for later</span>
@@ -276,17 +279,19 @@ const CartTable = ({ cart }: { cart?: CartWithExtras | null }) => {
                           size="sm"
                           variant="destructive"
                           disabled={isPending}
-                          onClick={() =>
-                            startTransition(async () => {
-                              const res = await deleteItem(item.productId);
-                              if (!res.success) {
-                                toast({
-                                  variant: "destructive",
-                                  description: res.message,
-                                });
-                              }
-                            })
-                          }
+                          onClick={() => {
+                            startTransition(() => {
+                              deleteItem(item.productId).then((res) => {
+                                if (!res.success) {
+                                  toast({
+                                    variant: "destructive",
+                                    description: res.message,
+                                  });
+                                }
+                                router.refresh();
+                              });
+                            });
+                          }}
                         >
                           <Trash2 className="w-4 h-4" />
                           <span className="sr-only">Delete</span>
@@ -304,33 +309,6 @@ const CartTable = ({ cart }: { cart?: CartWithExtras | null }) => {
                     {formatCurrency(liveTotals?.itemsPrice || 0)}
                   </TableCell>
                 </TableRow>
-                <TableRow>
-                  <TableCell />
-                  <TableCell colSpan={1} className="text-right font-medium">
-                    Shipping
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(liveTotals?.shippingPrice || 0)}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell />
-                  <TableCell colSpan={1} className="text-right font-medium">
-                    Tax
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(liveTotals?.taxPrice || 0)}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell />
-                  <TableCell colSpan={1} className="text-right font-semibold">
-                    Total
-                  </TableCell>
-                  <TableCell className="text-right font-semibold">
-                    {formatCurrency(liveTotals?.totalPrice || 0)}
-                  </TableCell>
-                </TableRow>
               </TableBody>
             </Table>
           </div>
@@ -341,7 +319,7 @@ const CartTable = ({ cart }: { cart?: CartWithExtras | null }) => {
                 <span>{formatCurrency(liveTotals?.itemsPrice || 0)}</span>
               </div>
               <div className="pb-2 flex justify-between">
-                <span>Shipping:</span>
+                <span>Estimated Shipping:</span>
                 <span>{formatCurrency(liveTotals?.shippingPrice || 0)}</span>
               </div>
               <div className="pb-2 flex justify-between">
@@ -416,19 +394,21 @@ const CartTable = ({ cart }: { cart?: CartWithExtras | null }) => {
                             size="sm"
                             variant="outline"
                             disabled={isPending}
-                            onClick={() =>
-                              startTransition(async () => {
-                                const res = await moveSavedItemToCart(
-                                  item.productId
+                            onClick={() => {
+                              startTransition(() => {
+                                moveSavedItemToCart(item.productId).then(
+                                  (res) => {
+                                    if (!res.success) {
+                                      toast({
+                                        variant: "destructive",
+                                        description: res.message,
+                                      });
+                                    }
+                                    router.refresh();
+                                  }
                                 );
-                                if (!res.success) {
-                                  toast({
-                                    variant: "destructive",
-                                    description: res.message,
-                                  });
-                                }
-                              })
-                            }
+                              });
+                            }}
                           >
                             Move to cart
                           </Button>
@@ -436,17 +416,19 @@ const CartTable = ({ cart }: { cart?: CartWithExtras | null }) => {
                             size="sm"
                             variant="destructive"
                             disabled={isPending}
-                            onClick={() =>
-                              startTransition(async () => {
-                                const res = await deleteItem(item.productId);
-                                if (!res.success) {
-                                  toast({
-                                    variant: "destructive",
-                                    description: res.message,
-                                  });
-                                }
-                              })
-                            }
+                            onClick={() => {
+                              startTransition(() => {
+                                deleteItem(item.productId).then((res) => {
+                                  if (!res.success) {
+                                    toast({
+                                      variant: "destructive",
+                                      description: res.message,
+                                    });
+                                  }
+                                  router.refresh();
+                                });
+                              });
+                            }}
                           >
                             <Trash2 className="w-4 h-4" />
                             <span className="sr-only">Delete</span>

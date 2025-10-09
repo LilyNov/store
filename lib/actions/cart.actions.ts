@@ -15,7 +15,7 @@ import { formatError } from "../utils";
 import { prisma } from "@/db/prisma";
 // import { Prisma } from "@prisma/client";
 import { convertToPlainObject, round2 } from "../utils";
-import { getAuth0UserMetadata } from "@/lib/auth0-management";
+import { getAuth0UserMetadata } from "@/lib/auth0-management"; // still used in merge for side metadata, not for userId resolution now
 import { cartItemSchema, insertCartSchema } from "../validators";
 import { Prisma } from "@prisma/client";
 
@@ -104,20 +104,26 @@ const parseCartItems = (items: unknown): CartItem[] => {
   }
 };
 
-// Safely resolve internal userId from Auth0 session & metadata (metadata may not exist yet)
-async function resolveUserId(): Promise<string | null> {
+// Ensure we have a local User row and return its id. We key off email rather than Auth0 metadata
+// to avoid foreign key violations caused by mismatched / unsynced external identifiers.
+async function ensureLocalUserId(): Promise<string | null> {
   try {
     const session = await auth0.getSession();
-    const userSessionId = session?.user.sub;
-    if (!userSessionId) return null;
-    try {
-      const meta = await getAuth0UserMetadata(userSessionId);
-      return meta?.user_metadata?.user_id ?? null;
-    } catch {
-      // Metadata fetch failing should not break cart usage for logged-in user
-      return null;
-    }
-  } catch {
+    const user = session?.user;
+    if (!user) return null;
+    const email = user.email as string | undefined;
+    if (!email) return null; // cannot map without email
+    const name = (user.name as string | undefined) || "NO_NAME";
+    const image = (user.picture as string | undefined) || undefined;
+    // Upsert guarantees the row exists without relying on Auth0 metadata custom fields.
+    const local = await prisma.user.upsert({
+      where: { email },
+      update: { name, image },
+      create: { email, name, image },
+    });
+    return local.id;
+  } catch (e) {
+    console.error("ensureLocalUserId failed", e);
     return null;
   }
 }
@@ -206,7 +212,7 @@ export async function addItemToCart(data: AddItemInput): Promise<ActionResult> {
   try {
     // sessionCartId cookie may be intentionally deleted after login/merge
     let sessionCartId = (await cookies()).get("sessionCartId")?.value;
-    const userId = await resolveUserId();
+    const userId = await ensureLocalUserId();
     if (!userId && !sessionCartId) {
       throw new Error("Cart Session not found");
     }
@@ -378,7 +384,7 @@ export async function removeItemFromCart(
   try {
     const cookieStore = await cookies();
     const sessionCartId = cookieStore.get("sessionCartId")?.value;
-    const userId = await resolveUserId();
+    const userId = await ensureLocalUserId();
     if (!userId && !sessionCartId) throw new Error("Cart Session not found");
     const cart = await prisma.cart.findFirst({
       where: userId
@@ -412,7 +418,7 @@ export async function saveItemForLater(
 ): Promise<CartMutationResult> {
   try {
     const sessionCartId = (await cookies()).get("sessionCartId")?.value;
-    const userId = await resolveUserId();
+    const userId = await ensureLocalUserId();
     if (!userId && !sessionCartId) throw new Error("Cart Session not found");
     const cart = await prisma.cart.findFirst({
       where: userId
@@ -450,7 +456,7 @@ export async function moveSavedItemToCart(
 ): Promise<CartMutationResult> {
   try {
     const sessionCartId = (await cookies()).get("sessionCartId")?.value;
-    const userId = await resolveUserId();
+    const userId = await ensureLocalUserId();
     if (!userId && !sessionCartId) throw new Error("Cart Session not found");
     const cart = await prisma.cart.findFirst({
       where: userId
@@ -490,7 +496,7 @@ export async function deleteItem(
 ): Promise<CartMutationResult> {
   try {
     const sessionCartId = (await cookies()).get("sessionCartId")?.value;
-    const userId = await resolveUserId();
+    const userId = await ensureLocalUserId();
     if (!userId && !sessionCartId) throw new Error("Cart Session not found");
     const cart = await prisma.cart.findFirst({
       where: userId
@@ -536,7 +542,7 @@ export async function deleteItem(
 
 export async function getMyCartWithTotals(): Promise<CartWithTotals | null> {
   const sessionCartId = (await cookies()).get("sessionCartId")?.value;
-  const userId = await resolveUserId();
+  const userId = await ensureLocalUserId();
   // If neither identifier exists, nothing to fetch
   if (!sessionCartId && !userId) return null;
   let resolvedCart = null as Awaited<
@@ -576,7 +582,7 @@ export async function getMyCartFull(): Promise<
   | null
 > {
   const sessionCartId = (await cookies()).get("sessionCartId")?.value;
-  const userId = await resolveUserId();
+  const userId = await ensureLocalUserId();
   if (!sessionCartId && !userId) return null;
   const cart = await prisma.cart.findFirst({
     where: userId
