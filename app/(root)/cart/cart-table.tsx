@@ -1,11 +1,24 @@
 "use client";
 
-import { CartWithTotalsFlat } from "@/types";
+import { CartWithTotalsFlat, CartItem } from "@/types";
 import { useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { addItemToCart, removeItemFromCart } from "@/lib/actions/cart.actions";
-import { ArrowRight, Loader, Minus, Plus } from "lucide-react";
+import {
+  addItemToCart,
+  removeItemFromCart,
+  saveItemForLater,
+  moveSavedItemToCart,
+  deleteItem,
+} from "@/lib/actions/cart.actions";
+import {
+  ArrowRight,
+  Loader,
+  Minus,
+  Plus,
+  Trash2,
+  Bookmark,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -20,23 +33,114 @@ import {
 } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/utils";
 import { calcCartTotals } from "@/lib/cart-totals";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useEffect, useMemo, useState } from "react";
+// import { cartItemSchema } from "@/lib/validators"; // no longer needed after server-side parsing
 
-const CartTable = ({ cart }: { cart?: CartWithTotalsFlat | null }) => {
+interface CartWithExtras extends CartWithTotalsFlat {
+  savedItems: CartItem[];
+  removedItems: CartItem[];
+}
+
+const CartTable = ({ cart }: { cart?: CartWithExtras | null }) => {
   const router = useRouter();
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
 
-  // Derive totals (cart already flattened may have itemsPrice etc.)
-  const derivedTotals = cart
-    ? {
-        itemsPrice: cart.itemsPrice,
-        shippingPrice: cart.shippingPrice,
-        taxPrice: cart.taxPrice,
-        totalPrice: cart.totalPrice,
+  // Selection state persisted to localStorage so refresh keeps choices
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Derive a stable key representing current product composition so we only
+  // re-hydrate selection when the actual set of productIds changes (not on
+  // quantity changes or object identity churn).
+  const productCompositionKey = useMemo(
+    () =>
+      cart
+        ? cart.items
+            .map((i) => i.productId)
+            .sort() // order-independent key
+            .join(",")
+        : "",
+    [cart]
+  );
+
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  // Hydrate selection from URL (?sel=pid1,pid2) or default to all if empty/invalid
+  useEffect(() => {
+    if (!cart) {
+      setSelectedIds(new Set());
+      return;
+    }
+    const selParam = searchParams.get("sel");
+    if (selParam) {
+      const allowed = new Set(cart.items.map((i) => i.productId));
+      const ids = selParam.split(",").filter((id) => allowed.has(id));
+      if (ids.length) {
+        setSelectedIds(new Set(ids));
+        return;
       }
-    : null;
-  const liveTotals =
-    !derivedTotals && cart ? calcCartTotals(cart.items) : derivedTotals;
+    }
+    // fallback: all
+    setSelectedIds(new Set(cart.items.map((i) => i.productId)));
+  }, [productCompositionKey, cart, searchParams]);
+
+  // Sync selection -> URL (replace state, no history spam)
+  useEffect(() => {
+    if (!cart) return;
+    // Build new query string preserving existing non-sel params
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
+    const allIds = cart.items.map((i) => i.productId);
+    const selectedArray = Array.from(selectedIds);
+    const allSelectedNow = selectedArray.length === allIds.length;
+    if (allSelectedNow) {
+      // Remove param when everything selected (clean URL)
+      if (current.has("sel")) {
+        current.delete("sel");
+      } else {
+        return; // nothing to change
+      }
+    } else {
+      current.set("sel", selectedArray.join(","));
+    }
+    const qs = current.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIds, productCompositionKey, cart]);
+
+  const allSelected =
+    cart && selectedIds.size === cart.items.length && cart.items.length > 0;
+  const partiallySelected = cart && selectedIds.size > 0 && !allSelected;
+
+  const toggleAll = () => {
+    if (!cart) return;
+    setSelectedIds(
+      allSelected ? new Set() : new Set(cart.items.map((i) => i.productId))
+    );
+  };
+
+  const toggleOne = (pid: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(pid)) next.delete(pid);
+      else next.add(pid);
+      return next;
+    });
+  };
+
+  const selectedItems = useMemo(
+    () => (cart ? cart.items.filter((i) => selectedIds.has(i.productId)) : []),
+    [cart, selectedIds]
+  );
+
+  const liveTotals = useMemo(() => {
+    if (!cart) return null;
+    return calcCartTotals(selectedItems);
+  }, [cart, selectedItems]);
+
+  // Safely parse savedItems if present (the prop cart doesn't yet type them)
+  const savedItems = cart ? cart.savedItems : [];
 
   return (
     <>
@@ -51,6 +155,19 @@ const CartTable = ({ cart }: { cart?: CartWithTotalsFlat | null }) => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8">
+                    <Checkbox
+                      aria-label="Select all"
+                      checked={
+                        allSelected
+                          ? true
+                          : partiallySelected
+                          ? "indeterminate"
+                          : false
+                      }
+                      onCheckedChange={toggleAll}
+                    />
+                  </TableHead>
                   <TableHead>Item</TableHead>
                   <TableHead className="text-center">Quantity</TableHead>
                   <TableHead className="text-right">Price</TableHead>
@@ -59,6 +176,13 @@ const CartTable = ({ cart }: { cart?: CartWithTotalsFlat | null }) => {
               <TableBody>
                 {cart.items.map((item) => (
                   <TableRow key={item.slug}>
+                    <TableCell className="w-8 align-middle">
+                      <Checkbox
+                        aria-label={`Select ${item.name}`}
+                        checked={selectedIds.has(item.productId)}
+                        onCheckedChange={() => toggleOne(item.productId)}
+                      />
+                    </TableCell>
                     <TableCell>
                       <Link
                         href={`/product/${item.slug}`}
@@ -122,11 +246,58 @@ const CartTable = ({ cart }: { cart?: CartWithTotalsFlat | null }) => {
                         )}
                       </Button>
                     </TableCell>
-                    <TableCell className="text-right">${item.price}</TableCell>
+                    <TableCell className="text-right space-y-2">
+                      <div>${item.price}</div>
+                      <div className="flex gap-2 justify-end">
+                        {cart?.userId && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={isPending}
+                            onClick={() =>
+                              startTransition(async () => {
+                                const res = await saveItemForLater(
+                                  item.productId
+                                );
+                                if (!res.success) {
+                                  toast({
+                                    variant: "destructive",
+                                    description: res.message,
+                                  });
+                                }
+                              })
+                            }
+                          >
+                            <Bookmark className="w-4 h-4" />
+                            <span className="sr-only">Save for later</span>
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={isPending}
+                          onClick={() =>
+                            startTransition(async () => {
+                              const res = await deleteItem(item.productId);
+                              if (!res.success) {
+                                toast({
+                                  variant: "destructive",
+                                  description: res.message,
+                                });
+                              }
+                            })
+                          }
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span className="sr-only">Delete</span>
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
                 <TableRow>
-                  <TableCell colSpan={2} className="text-right font-medium">
+                  <TableCell />
+                  <TableCell colSpan={1} className="text-right font-medium">
                     Items Subtotal
                   </TableCell>
                   <TableCell className="text-right">
@@ -134,7 +305,8 @@ const CartTable = ({ cart }: { cart?: CartWithTotalsFlat | null }) => {
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell colSpan={2} className="text-right font-medium">
+                  <TableCell />
+                  <TableCell colSpan={1} className="text-right font-medium">
                     Shipping
                   </TableCell>
                   <TableCell className="text-right">
@@ -142,7 +314,8 @@ const CartTable = ({ cart }: { cart?: CartWithTotalsFlat | null }) => {
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell colSpan={2} className="text-right font-medium">
+                  <TableCell />
+                  <TableCell colSpan={1} className="text-right font-medium">
                     Tax
                   </TableCell>
                   <TableCell className="text-right">
@@ -150,7 +323,8 @@ const CartTable = ({ cart }: { cart?: CartWithTotalsFlat | null }) => {
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell colSpan={2} className="text-right font-semibold">
+                  <TableCell />
+                  <TableCell colSpan={1} className="text-right font-semibold">
                     Total
                   </TableCell>
                   <TableCell className="text-right font-semibold">
@@ -180,7 +354,16 @@ const CartTable = ({ cart }: { cart?: CartWithTotalsFlat | null }) => {
               </div>
               <Button
                 onClick={() =>
-                  startTransition(() => router.push("/shipping-address"))
+                  startTransition(() => {
+                    if (!selectedItems.length) {
+                      toast({
+                        variant: "destructive",
+                        description: "Select at least one item",
+                      });
+                      return;
+                    }
+                    router.push("/shipping-address");
+                  })
                 }
                 className="w-full"
                 disabled={isPending}
@@ -190,10 +373,92 @@ const CartTable = ({ cart }: { cart?: CartWithTotalsFlat | null }) => {
                 ) : (
                   <ArrowRight className="w-4 h-4" />
                 )}
-                Proceed to Checkout
+                Proceed to Checkout ({selectedItems.length})
               </Button>
             </CardContent>
           </Card>
+          {/* Saved For Later Section (full width under main grid) */}
+          {cart?.userId && savedItems.length > 0 && (
+            <div className="md:col-span-4 mt-8">
+              <h2 className="h3-bold mb-4">Saved For Later</h2>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Item</TableHead>
+                    <TableHead className="text-center">Quantity</TableHead>
+                    <TableHead className="text-right">Price</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {savedItems.map((item) => (
+                    <TableRow key={item.slug}>
+                      <TableCell>
+                        <Link
+                          href={`/product/${item.slug}`}
+                          className="flex items-center"
+                        >
+                          <Image
+                            src={item.image}
+                            alt={item.name}
+                            width={50}
+                            height={50}
+                          />
+                          <span className="px-2">{item.name}</span>
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {item.quantity}
+                      </TableCell>
+                      <TableCell className="text-right space-y-2">
+                        <div>${item.price}</div>
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={isPending}
+                            onClick={() =>
+                              startTransition(async () => {
+                                const res = await moveSavedItemToCart(
+                                  item.productId
+                                );
+                                if (!res.success) {
+                                  toast({
+                                    variant: "destructive",
+                                    description: res.message,
+                                  });
+                                }
+                              })
+                            }
+                          >
+                            Move to cart
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            disabled={isPending}
+                            onClick={() =>
+                              startTransition(async () => {
+                                const res = await deleteItem(item.productId);
+                                if (!res.success) {
+                                  toast({
+                                    variant: "destructive",
+                                    description: res.message,
+                                  });
+                                }
+                              })
+                            }
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span className="sr-only">Delete</span>
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </div>
       )}
     </>

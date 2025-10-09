@@ -1,11 +1,18 @@
 import { ManagementClient } from "auth0";
 
-// Create an Auth0 Management API client
-const managementClient = new ManagementClient({
-  domain: process.env.AUTH0_DOMAIN || "",
-  clientId: process.env.AUTH0_MANAGEMENT_CLIENT_ID || "",
-  clientSecret: process.env.AUTH0_MANAGEMENT_CLIENT_SECRET || "",
-});
+// Create an Auth0 Management API client only if env vars exist; otherwise use a noop fallback
+const hasMgmtEnv =
+  !!process.env.AUTH0_DOMAIN &&
+  !!process.env.AUTH0_MANAGEMENT_CLIENT_ID &&
+  !!process.env.AUTH0_MANAGEMENT_CLIENT_SECRET;
+
+const managementClient = hasMgmtEnv
+  ? new ManagementClient({
+      domain: process.env.AUTH0_DOMAIN!,
+      clientId: process.env.AUTH0_MANAGEMENT_CLIENT_ID!,
+      clientSecret: process.env.AUTH0_MANAGEMENT_CLIENT_SECRET!,
+    })
+  : null;
 
 /**
  * Updates Auth0 user metadata
@@ -24,10 +31,11 @@ export async function updateAuth0UserMetadata(
   );
   console.log("Management client:", managementClient);
 
+  if (!managementClient) return false;
   try {
     await managementClient.users.update(
-      { id: auth0UserId }, // Request parameter - which user to update
-      { user_metadata: userId } // Body parameter - what to update
+      { id: auth0UserId },
+      { user_metadata: userId }
     );
     return true;
   } catch (error) {
@@ -44,6 +52,7 @@ export async function updateAuth0UserMetadata(
 export async function getAuth0UserMetadata(auth0UserId: string) {
   console.log("Fetching Auth0 user metadata for user ID:", auth0UserId);
 
+  if (!managementClient) return null;
   try {
     const user = await managementClient.users.get({ id: auth0UserId });
 

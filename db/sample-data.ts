@@ -23,8 +23,8 @@ const sampleData = {
       description:
         "Posh quilted full-grain leather tote with gold accents, padded handle, and organized interior pockets.",
       images: [
-        "/images/sample-products/p1-1.jpg",
-        "/images/sample-products/p1-2.jpg",
+        "/images/sample-products/p1-1-v2.jpg",
+        "/images/sample-products/p1-2-v2.jpg",
       ],
       price: 59.99,
       brand: "Kosh",
@@ -41,8 +41,8 @@ const sampleData = {
       description:
         "Structured saffiano leather carryall with reinforced base, padded tech sleeve, and polished hardware.",
       images: [
-        "/images/sample-products/p2-1.jpg",
-        "/images/sample-products/p2-2.jpg",
+        "/images/sample-products/p2-1-v2.jpg",
+        "/images/sample-products/p2-2-v2.jpg",
       ],
       price: 85.9,
       brand: "Kosh",
@@ -59,8 +59,8 @@ const sampleData = {
       description:
         "Premium Italian leather reversible belt (black / espresso) with brushed nickel buckle for refined versatility.",
       images: [
-        "/images/sample-products/p3-1.jpg",
-        "/images/sample-products/p3-2.jpg",
+        "/images/sample-products/p3-1-v2.jpg",
+        "/images/sample-products/p3-2-v2.jpg",
       ],
       price: 99.95,
       brand: "Kosh",
@@ -77,8 +77,8 @@ const sampleData = {
       description:
         "Supple pebble leather satchel with removable crossbody strap, magnetic flap, and velvet-lined compartments.",
       images: [
-        "/images/sample-products/p4-1.jpg",
-        "/images/sample-products/p4-2.jpg",
+        "/images/sample-products/p4-1-v2.jpg",
+        "/images/sample-products/p4-2-v2.jpg",
       ],
       price: 39.95,
       brand: "Kosh",
@@ -95,8 +95,8 @@ const sampleData = {
       description:
         "Spacious travel weekender in textured oxford leather with separate shoe bay and luggage sleeve pass-through.",
       images: [
-        "/images/sample-products/p5-1.jpg",
-        "/images/sample-products/p5-2.jpg",
+        "/images/sample-products/p5-1-v2.jpg",
+        "/images/sample-products/p5-2-v2.jpg",
       ],
       price: 79.99,
       brand: "Kosh",
@@ -113,8 +113,8 @@ const sampleData = {
       description:
         "Compact velvet mini bucket bag with satin lining, drawstring closure, and detachable brushed chain strap.",
       images: [
-        "/images/sample-products/p6-1.jpg",
-        "/images/sample-products/p6-2.jpg",
+        "/images/sample-products/p6-1-v2.jpg",
+        "/images/sample-products/p6-2-v2.jpg",
       ],
       price: 99.99,
       brand: "Kosh",

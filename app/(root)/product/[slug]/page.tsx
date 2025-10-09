@@ -6,19 +6,20 @@ import { Badge } from "@/components/ui/badge";
 import ProductImages from "@/components/shared/product/product-images";
 import AddToCart from "@/components/shared/product/add-to-cart";
 import { getMyCart } from "@/lib/actions/cart.actions";
+import React from "react";
 
-const ProductDetailsPage = async (props: {
-  params: Promise<{ slug: string }>;
-}) => {
-  const params = await props.params;
-
+const ProductDetailsPage = async ({ params }: { params: { slug: string } }) => {
   const { slug } = params;
 
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const cart = await getMyCart();
-  console.log(cart);
+  let cart = null;
+  try {
+    cart = await getMyCart();
+  } catch (e) {
+    console.error("ProductDetailsPage: failed to load cart", e);
+  }
 
   return (
     <>
@@ -26,7 +27,13 @@ const ProductDetailsPage = async (props: {
         <div className="grid grid-cols-1 md:grid-cols-5">
           {/* Images Column */}
           <div className="col-span-2">
-            <ProductImages images={product.images!} />
+            {Array.isArray(product.images) && product.images.length > 0 ? (
+              <ProductImages images={product.images} />
+            ) : (
+              <div className="min-h-[300px] flex items-center justify-center border rounded">
+                <span className="text-sm text-muted-foreground">No image</span>
+              </div>
+            )}
           </div>
 
           {/* Details Column */}
@@ -80,7 +87,10 @@ const ProductDetailsPage = async (props: {
                         slug: product.slug,
                         price: Number(product.price),
                         quantity: 1,
-                        image: product.images![0],
+                        image:
+                          Array.isArray(product.images) && product.images.length
+                            ? product.images[0]
+                            : "/images/placeholder.jpg",
                       }}
                     />
                   </div>

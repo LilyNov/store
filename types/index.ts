@@ -38,4 +38,6 @@ export interface CartItemStrict extends CartItem {
   quantity: number;
   image: string;
   price: number; // normalized to number in actions layer
+  saved?: boolean;
+  deletedAt?: Date;
 }

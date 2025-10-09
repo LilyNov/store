@@ -1,50 +1,32 @@
 import type { NextRequest } from "next/server";
 import { auth0 } from "./lib/auth0";
-// import { prisma } from "@/db/prisma";
-// import { getAuth0UserMetadata } from "@/lib/auth0-management";
 
 export async function middleware(request: NextRequest) {
   // Run Auth0 middleware first
   const response = await auth0.middleware(request);
 
-  // Check for cart cookie and set if missing
-  if (!request.cookies.get("sessionCartId")) {
-    const sessionCartId = crypto.randomUUID();
-    response.cookies.set("sessionCartId", sessionCartId, {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-    });
+  // Determine if user is authenticated (Auth0 sets session cookie / user in getSession downstream)
+  // We keep middleware light: we only set a sessionCartId for anonymous visitors.
+  const hasSessionCart = !!request.cookies.get("sessionCartId");
+
+  if (!hasSessionCart) {
+    // Heuristic: if user is already authenticated we do NOT create a new anonymous session cart
+    // because cart actions will now use userId-based cart.
+    // We can't call auth0.getSession() here cheaply (could, but keep minimal). Instead rely on cookie names.
+    const cookieNames = request.cookies.getAll().map((c) => c.name);
+    const isAuthLikely = cookieNames.some(
+      (name) => name.startsWith("appSession") || name.includes("auth0")
+    );
+    if (!isAuthLikely) {
+      const sessionCartId = crypto.randomUUID();
+      response.cookies.set("sessionCartId", sessionCartId, {
+        path: "/",
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+      });
+    }
   }
-  // else {
-  //   const sessionCartId = request.cookies.get("sessionCartId")?.value;
-  //   const sessionCart = await prisma.cart.findFirst({
-  //     where: { sessionCartId },
-  //   });
-  //   // Get session and user ID
-  //   let userId: string | null = null;
-  //   const session = await auth0.getSession();
-  //   const userSessionId = session?.user.sub;
-
-  //   if (userSessionId) {
-  //     const userMetadata = await getAuth0UserMetadata(userSessionId);
-  //     // Extract the userId from userMetadata, adjust the property as needed
-  //     userId = userMetadata?.user_metadata?.user_id ?? null;
-  //   }
-  //   if (sessionCart) {
-  //     // Overwrite any existing user cart
-  //     await prisma.cart.deleteMany({
-  //       where: { userId: userId },
-  //     });
-
-  //     // Assign the guest cart to the logged-in user
-  //     await prisma.cart.update({
-  //       where: { id: sessionCart.id },
-  //       data: { userId: userId },
-  //     });
-  //   }
-  // }
 
   return response;
 }

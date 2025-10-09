@@ -21,10 +21,106 @@ import { Prisma } from "@prisma/client";
 
 // ---------- Types & Helpers ----------
 type ActionResult = { success: boolean; message: string };
+type CartMutationResult = ActionResult;
+// Temporary extended cart shape including new fields until Prisma client regenerated
+interface ExtendedCart {
+  id: string;
+  items: unknown;
+  savedItems?: unknown;
+  removedItems?: unknown;
+}
 
-// Parse unknown JSON array (from Prisma Json[]) into strongly typed CartItem[]
-const parseCartItems = (items: unknown): CartItem[] =>
-  cartItemSchema.array().parse(items ?? []);
+// Parse unknown JSON array (from Prisma Json[]) into strongly typed CartItem[].
+// Fault tolerant: attempts normalization, then Zod parse; on failure salvages minimally valid entries.
+const parseCartItems = (items: unknown): CartItem[] => {
+  const arr = Array.isArray(items) ? items : [];
+  const normalized = arr.map((raw) => {
+    if (!raw || typeof raw !== "object") return raw;
+    const obj: Record<string, unknown> = {
+      ...(raw as Record<string, unknown>),
+    };
+    if (obj.price != null && typeof obj.price !== "number") {
+      const num = Number(obj.price);
+      if (!Number.isNaN(num)) obj.price = num;
+    }
+    if (obj.deletedAt && typeof obj.deletedAt === "string") {
+      const d = new Date(obj.deletedAt as string);
+      if (!isNaN(d.getTime())) obj.deletedAt = d;
+    }
+    return obj;
+  });
+  try {
+    return cartItemSchema.array().parse(normalized);
+  } catch (err) {
+    console.error("parseCartItems: validation failed, attempting salvage", err);
+    interface LooseItem {
+      [k: string]: unknown;
+      productId?: string;
+      name?: string;
+      slug?: string;
+      quantity?: unknown;
+      image?: string;
+      price?: unknown;
+      saved?: unknown;
+      deletedAt?: unknown;
+    }
+    const isLoose = (o: unknown): o is LooseItem =>
+      !!o && typeof o === "object";
+    const salvaged = normalized
+      .filter((o): o is LooseItem => {
+        if (!isLoose(o)) return false;
+        if (typeof o.productId !== "string") return false;
+        const priceNum = Number(o.price);
+        if (!Number.isFinite(priceNum)) return false;
+        if (!Number.isInteger(o.quantity as number)) return false;
+        return true;
+      })
+      .map((o) => {
+        const priceNum = Number(o.price);
+        const deletedAtDate =
+          o.deletedAt instanceof Date
+            ? o.deletedAt
+            : typeof o.deletedAt === "string"
+            ? new Date(o.deletedAt)
+            : undefined;
+        return {
+          productId: o.productId!,
+          name: o.name ?? "UNKNOWN",
+          slug: o.slug ?? o.productId,
+          quantity: (o.quantity as number) ?? 0,
+          image: o.image ?? "",
+          price: Number.isNaN(priceNum) ? 0 : priceNum,
+          saved: o.saved === true ? true : undefined,
+          deletedAt:
+            deletedAtDate && !isNaN(deletedAtDate.getTime())
+              ? deletedAtDate
+              : undefined,
+        } as CartItem;
+      });
+    const safe = cartItemSchema.array().safeParse(salvaged);
+    if (safe.success) return safe.data;
+    console.error("parseCartItems: salvage failed; returning empty array");
+    return [];
+  }
+};
+
+// Safely resolve internal userId from Auth0 session & metadata (metadata may not exist yet)
+async function resolveUserId(): Promise<string | null> {
+  try {
+    const session = await auth0.getSession();
+    const userSessionId = session?.user.sub;
+    if (!userSessionId) return null;
+    try {
+      const meta = await getAuth0UserMetadata(userSessionId);
+      return meta?.user_metadata?.user_id ?? null;
+    } catch {
+      // Metadata fetch failing should not break cart usage for logged-in user
+      return null;
+    }
+  } catch {
+    return null;
+  }
+}
 
 // Recalculate totals for a cart (internal helper)
 const calcTotals = (rawItems: unknown): CartTotals => {
@@ -45,17 +141,74 @@ const calcTotals = (rawItems: unknown): CartTotals => {
 // Accept either a plain object with productId or a CartItem; only productId is used.
 type AddItemInput = { productId: string } | Pick<CartItem, "productId">;
 
+// --- Internal helper: claim or merge a session cart into a user cart ---
+async function claimOrMergeCart(userId: string, sessionCartId: string) {
+  if (!userId || !sessionCartId) return null;
+  const cookieStore = await cookies();
+  const sessionOnly = await prisma.cart.findFirst({
+    where: { sessionCartId, userId: null },
+  });
+  const userCart = await prisma.cart.findFirst({ where: { userId } });
+
+  if (!sessionOnly && !userCart) return null;
+  if (sessionOnly && !userCart) {
+    const claimed = await prisma.cart.update({
+      where: { id: sessionOnly.id },
+      data: { userId },
+    });
+    cookieStore.delete("sessionCartId");
+    return claimed;
+  }
+  if (!sessionOnly && userCart) {
+    cookieStore.delete("sessionCartId"); // stale cookie
+    return userCart;
+  }
+  if (sessionOnly && userCart && sessionOnly.id !== userCart.id) {
+    const mergedMap = new Map<string, CartItem>();
+    const push = (raw: unknown) => {
+      parseCartItems(raw).forEach((it) => {
+        const ex = mergedMap.get(it.productId);
+        if (ex) ex.quantity += it.quantity;
+        else mergedMap.set(it.productId, { ...it });
+      });
+    };
+    push(sessionOnly.items);
+    push(userCart.items);
+    const productIds = Array.from(mergedMap.keys());
+    if (productIds.length) {
+      const stocks = await prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, stock: true },
+      });
+      const stockMap = new Map(stocks.map((p) => [p.id, p.stock]));
+      for (const [pid, itm] of mergedMap) {
+        const max = stockMap.get(pid) ?? 0;
+        if (itm.quantity > max) itm.quantity = max;
+        if (itm.quantity <= 0) mergedMap.delete(pid);
+      }
+    }
+    await prisma.cart.update({
+      where: { id: userCart.id },
+      data: {
+        items: Array.from(
+          mergedMap.values()
+        ) as unknown as Prisma.InputJsonValue[],
+      },
+    });
+    await prisma.cart.delete({ where: { id: sessionOnly.id } });
+    cookieStore.delete("sessionCartId");
+    return await prisma.cart.findUnique({ where: { id: userCart.id } });
+  }
+  return null;
+}
+
 export async function addItemToCart(data: AddItemInput): Promise<ActionResult> {
   try {
-    const sessionCartId = (await cookies()).get("sessionCartId")?.value;
-    if (!sessionCartId) throw new Error("Cart Session not found");
-
-    let userId: string | null = null;
-    const session = await auth0.getSession();
-    const userSessionId = session?.user.sub;
-    if (userSessionId) {
-      const meta = await getAuth0UserMetadata(userSessionId);
-      userId = meta?.user_metadata?.user_id ?? null;
+    // sessionCartId cookie may be intentionally deleted after login/merge
+    let sessionCartId = (await cookies()).get("sessionCartId")?.value;
+    const userId = await resolveUserId();
+    if (!userId && !sessionCartId) {
+      throw new Error("Cart Session not found");
     }
 
     // product lookup
@@ -65,12 +218,15 @@ export async function addItemToCart(data: AddItemInput): Promise<ActionResult> {
     });
     if (!product) throw new Error("Product not found");
 
-    // fetch or create cart
-    let cart = await prisma.cart.findFirst({
-      where: userId
-        ? { OR: [{ userId }, { sessionCartId }] }
-        : { sessionCartId },
-    });
+    // Resolve cart through helper if both user & session cart exist (merge scenario)
+    let cart = null as Awaited<ReturnType<typeof prisma.cart.findFirst>> | null;
+    if (userId) {
+      cart = sessionCartId
+        ? await claimOrMergeCart(userId, sessionCartId)
+        : await prisma.cart.findFirst({ where: { userId } });
+    } else if (sessionCartId) {
+      cart = await prisma.cart.findFirst({ where: { sessionCartId } });
+    }
 
     if (!cart) {
       const newItem: CartItem = {
@@ -81,6 +237,8 @@ export async function addItemToCart(data: AddItemInput): Promise<ActionResult> {
         image: product.images[0] ?? "",
         price: Number(product.price),
       };
+      // If user is logged in and sessionCartId missing (post-merge), generate ephemeral id
+      if (!sessionCartId) sessionCartId = crypto.randomUUID();
       const parsed = insertCartSchema.parse({
         userId,
         sessionCartId,
@@ -206,8 +364,6 @@ export async function mergeSessionCartIntoUserCart(): Promise<ActionResult> {
         ) as unknown as Prisma.InputJsonValue[],
       },
     });
-
-    // Remove session-only cart
     await prisma.cart.delete({ where: { id: sessionCart!.id } });
 
     return { success: true, message: "Carts merged" };
@@ -220,18 +376,15 @@ export async function removeItemFromCart(
   productId: string
 ): Promise<ActionResult> {
   try {
-    const sessionCartId = (await cookies()).get("sessionCartId")?.value;
-    if (!sessionCartId) throw new Error("Cart Session not found");
-    let userId: string | null = null;
-    const session = await auth0.getSession();
-    const userSessionId = session?.user.sub;
-    if (userSessionId) {
-      const meta = await getAuth0UserMetadata(userSessionId);
-      userId = meta?.user_metadata?.user_id ?? null;
-    }
+    const cookieStore = await cookies();
+    const sessionCartId = cookieStore.get("sessionCartId")?.value;
+    const userId = await resolveUserId();
+    if (!userId && !sessionCartId) throw new Error("Cart Session not found");
     const cart = await prisma.cart.findFirst({
       where: userId
-        ? { OR: [{ userId }, { sessionCartId }] }
+        ? sessionCartId
+          ? { OR: [{ userId }, { sessionCartId }] }
+          : { userId }
         : { sessionCartId },
     });
     if (!cart) throw new Error("Cart not found");
@@ -253,21 +406,152 @@ export async function removeItemFromCart(
   }
 }
 
+// Save an item for later: move from items[] to savedItems[] (retain quantity & meta)
+export async function saveItemForLater(
+  productId: string
+): Promise<CartMutationResult> {
+  try {
+    const sessionCartId = (await cookies()).get("sessionCartId")?.value;
+    const userId = await resolveUserId();
+    if (!userId && !sessionCartId) throw new Error("Cart Session not found");
+    const cart = await prisma.cart.findFirst({
+      where: userId
+        ? sessionCartId
+          ? { OR: [{ userId }, { sessionCartId }] }
+          : { userId }
+        : { sessionCartId },
+    });
+    if (!cart) throw new Error("Cart not found");
+    const items = parseCartItems(cart.items);
+    const idx = items.findIndex((i) => i.productId === productId);
+    if (idx < 0) throw new Error("Item not found in cart");
+    const [removed] = items.splice(idx, 1);
+    // Append to savedItems (ensure uniqueness by productId; replace if exists)
+    const savedItems = parseCartItems((cart as ExtendedCart).savedItems ?? []);
+    const existingIdx = savedItems.findIndex((i) => i.productId === productId);
+    if (existingIdx >= 0) savedItems[existingIdx] = { ...removed, saved: true };
+    else savedItems.push({ ...removed, saved: true });
+    await prisma.cart.update({
+      where: { id: cart.id },
+      data: {
+        items: items as unknown as Prisma.InputJsonValue[],
+        savedItems: savedItems as unknown as Prisma.InputJsonValue[],
+      },
+    });
+    return { success: true, message: "Item saved for later" };
+  } catch (e) {
+    return { success: false, message: formatError(e) };
+  }
+}
+
+// Move a saved item back into the active cart items[] (adds quantity if already present)
+export async function moveSavedItemToCart(
+  productId: string
+): Promise<CartMutationResult> {
+  try {
+    const sessionCartId = (await cookies()).get("sessionCartId")?.value;
+    const userId = await resolveUserId();
+    if (!userId && !sessionCartId) throw new Error("Cart Session not found");
+    const cart = await prisma.cart.findFirst({
+      where: userId
+        ? sessionCartId
+          ? { OR: [{ userId }, { sessionCartId }] }
+          : { userId }
+        : { sessionCartId },
+    });
+    if (!cart) throw new Error("Cart not found");
+    const items = parseCartItems(cart.items);
+    const savedItems = parseCartItems((cart as ExtendedCart).savedItems ?? []);
+    const idx = savedItems.findIndex((i) => i.productId === productId);
+    if (idx < 0) throw new Error("Item not in saved list");
+    const [saved] = savedItems.splice(idx, 1);
+    const existingIdx = items.findIndex((i) => i.productId === productId);
+    if (existingIdx >= 0) {
+      items[existingIdx].quantity += saved.quantity;
+    } else {
+      items.push({ ...saved, saved: undefined });
+    }
+    await prisma.cart.update({
+      where: { id: cart.id },
+      data: {
+        items: items as unknown as Prisma.InputJsonValue[],
+        savedItems: savedItems as unknown as Prisma.InputJsonValue[],
+      },
+    });
+    return { success: true, message: "Item moved to cart" };
+  } catch (e) {
+    return { success: false, message: formatError(e) };
+  }
+}
+
+// Permanently delete an item from cart OR saved list and track in removedItems with deletedAt timestamp
+export async function deleteItem(
+  productId: string
+): Promise<CartMutationResult> {
+  try {
+    const sessionCartId = (await cookies()).get("sessionCartId")?.value;
+    const userId = await resolveUserId();
+    if (!userId && !sessionCartId) throw new Error("Cart Session not found");
+    const cart = await prisma.cart.findFirst({
+      where: userId
+        ? sessionCartId
+          ? { OR: [{ userId }, { sessionCartId }] }
+          : { userId }
+        : { sessionCartId },
+    });
+    if (!cart) throw new Error("Cart not found");
+    const items = parseCartItems(cart.items);
+    const savedItems = parseCartItems((cart as ExtendedCart).savedItems ?? []);
+    const removedItems = parseCartItems(
+      (cart as ExtendedCart).removedItems ?? []
+    );
+    let removed: CartItem | null = null;
+    let idx = items.findIndex((i) => i.productId === productId);
+    if (idx >= 0) {
+      removed = items.splice(idx, 1)[0];
+    } else {
+      idx = savedItems.findIndex((i) => i.productId === productId);
+      if (idx >= 0) removed = savedItems.splice(idx, 1)[0];
+    }
+    if (!removed) throw new Error("Item not found");
+    // Track deletion with timestamp (convert to plain object + deletedAt field)
+    const deletedEntry: CartItem & { deletedAt: Date } = {
+      ...removed,
+      deletedAt: new Date(),
+    };
+    removedItems.push(deletedEntry);
+    await prisma.cart.update({
+      where: { id: cart.id },
+      data: {
+        items: items as unknown as Prisma.InputJsonValue[],
+        savedItems: savedItems as unknown as Prisma.InputJsonValue[],
+        removedItems: removedItems as unknown as Prisma.InputJsonValue[],
+      },
+    });
+    return { success: true, message: "Item deleted" };
+  } catch (e) {
+    return { success: false, message: formatError(e) };
+  }
+}
+
 export async function getMyCartWithTotals(): Promise<CartWithTotals | null> {
   const sessionCartId = (await cookies()).get("sessionCartId")?.value;
-  if (!sessionCartId) return null;
-  let userId: string | null = null;
-  const session = await auth0.getSession();
-  const userSessionId = session?.user.sub;
-  if (userSessionId) {
-    const meta = await getAuth0UserMetadata(userSessionId);
-    userId = meta?.user_metadata?.user_id ?? null;
+  const userId = await resolveUserId();
+  // If neither identifier exists, nothing to fetch
+  if (!sessionCartId && !userId) return null;
+  let resolvedCart = null as Awaited<
+    ReturnType<typeof prisma.cart.findFirst>
+  > | null;
+  if (userId) {
+    resolvedCart = sessionCartId
+      ? await claimOrMergeCart(userId, sessionCartId)
+      : await prisma.cart.findFirst({ where: { userId } });
   }
-  const cart = await prisma.cart.findFirst({
-    where: userId ? { OR: [{ userId }, { sessionCartId }] } : { sessionCartId },
-  });
-  if (!cart) return null;
-  const plain = convertToPlainObject(cart);
+  if (!resolvedCart && sessionCartId) {
+    resolvedCart = await prisma.cart.findFirst({ where: { sessionCartId } });
+  }
+  if (!resolvedCart) return null;
+  const plain = convertToPlainObject(resolvedCart);
   const items = parseCartItems(plain.items);
   const totals = calcTotals(items);
   const shaped: CartWithTotals = {
@@ -284,4 +568,51 @@ export async function getMyCart(): Promise<CartWithTotalsFlat | null> {
   if (!cart) return null;
   const { totals, ...rest } = cart;
   return { ...rest, ...totals } as CartWithTotalsFlat;
+}
+
+// Extended fetch including savedItems & removedItems (parsed) for richer UI
+export async function getMyCartFull(): Promise<
+  | (CartWithTotalsFlat & { savedItems: CartItem[]; removedItems: CartItem[] })
+  | null
+> {
+  const sessionCartId = (await cookies()).get("sessionCartId")?.value;
+  const userId = await resolveUserId();
+  if (!sessionCartId && !userId) return null;
+  const cart = await prisma.cart.findFirst({
+    where: userId
+      ? sessionCartId
+        ? { OR: [{ userId }, { sessionCartId }] }
+        : { userId }
+      : { sessionCartId },
+  });
+  if (!cart) return null;
+  interface PlainCart {
+    id: string;
+    userId: string | null;
+    sessionCartId: string;
+    createdAt: Date;
+    updatedAt: Date;
+    items: unknown;
+    savedItems?: unknown;
+    removedItems?: unknown;
+  }
+  const plain = convertToPlainObject(cart) as PlainCart;
+  const items = parseCartItems(plain.items);
+  const savedItems = parseCartItems(plain.savedItems ?? []);
+  const removedItems = parseCartItems(plain.removedItems ?? []);
+  const totals = calcTotals(items);
+  return {
+    id: plain.id,
+    userId: plain.userId ?? null,
+    sessionCartId: plain.sessionCartId,
+    createdAt: plain.createdAt,
+    updatedAt: plain.updatedAt,
+    items,
+    ...totals,
+    savedItems,
+    removedItems,
+  } as CartWithTotalsFlat & {
+    savedItems: CartItem[];
+    removedItems: CartItem[];
+  };
 }

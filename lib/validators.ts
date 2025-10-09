@@ -39,12 +39,17 @@ export const cartItemSchema = z.object({
       (value) => /^\d+(\.\d{2})?$/.test(Number(value).toFixed(2)),
       "Price must have exactly two decimal places (e.g., 49.99)"
     ),
+  // Optional flags (not always present in active cart items array)
+  saved: z.boolean().optional(),
+  deletedAt: z.date().optional(),
 });
 
 export const insertCartSchema = z.object({
   items: z.array(cartItemSchema),
   sessionCartId: z.string().min(1, "Session cart id is required"),
   userId: z.string().nullable().optional(),
+  savedItems: z.array(cartItemSchema).optional().default([]),
+  removedItems: z.array(cartItemSchema).optional().default([]),
 });
 
 // DB shape (what Prisma returns)
