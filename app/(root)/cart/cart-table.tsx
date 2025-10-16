@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/utils";
 import { calcCartTotals } from "@/lib/cart-totals";
+import ProductList from "@/components/shared/product/product-list";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useEffect, useMemo, useState } from "react";
 // import { cartItemSchema } from "@/lib/validators"; // no longer needed after server-side parsing
@@ -355,90 +356,48 @@ const CartTable = ({ cart }: { cart?: CartWithExtras | null }) => {
               </Button>
             </CardContent>
           </Card>
-          {/* Saved For Later Section (full width under main grid) */}
+          {/* Saved For Later Section */}
           {cart?.userId && savedItems.length > 0 && (
             <div className="md:col-span-4 mt-8">
-              <h2 className="h3-bold mb-4">Saved For Later</h2>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item</TableHead>
-                    <TableHead className="text-center">Quantity</TableHead>
-                    <TableHead className="text-right">Price</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {savedItems.map((item) => (
-                    <TableRow key={item.slug}>
-                      <TableCell>
-                        <Link
-                          href={`/product/${item.slug}`}
-                          className="flex items-center"
-                        >
-                          <Image
-                            src={item.image}
-                            alt={item.name}
-                            width={50}
-                            height={50}
-                          />
-                          <span className="px-2">{item.name}</span>
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {item.quantity}
-                      </TableCell>
-                      <TableCell className="text-right space-y-2">
-                        <div>${item.price}</div>
-                        <div className="flex gap-2 justify-end">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={isPending}
-                            onClick={() => {
-                              startTransition(() => {
-                                moveSavedItemToCart(item.productId).then(
-                                  (res) => {
-                                    if (!res.success) {
-                                      toast({
-                                        variant: "destructive",
-                                        description: res.message,
-                                      });
-                                    }
-                                    router.refresh();
-                                  }
-                                );
-                              });
-                            }}
-                          >
-                            Move to cart
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            disabled={isPending}
-                            onClick={() => {
-                              startTransition(() => {
-                                deleteItem(item.productId).then((res) => {
-                                  if (!res.success) {
-                                    toast({
-                                      variant: "destructive",
-                                      description: res.message,
-                                    });
-                                  }
-                                  router.refresh();
-                                });
-                              });
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            <span className="sr-only">Delete</span>
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <ProductList
+                data={savedItems.map((s) => ({
+                  ...s,
+                  images: [s.image],
+                  price: s.price,
+                  quantity: s.quantity,
+                }))}
+                title="Saved For Later"
+                variant="compactCart"
+                loading={false}
+                onMove={(item) => {
+                  startTransition(() => {
+                    moveSavedItemToCart(item.productId as string).then(
+                      (res) => {
+                        if (!res.success) {
+                          toast({
+                            variant: "destructive",
+                            description: res.message,
+                          });
+                        }
+                        router.refresh();
+                      }
+                    );
+                  });
+                }}
+                onDelete={(item) => {
+                  startTransition(() => {
+                    deleteItem(item.productId as string).then((res) => {
+                      if (!res.success) {
+                        toast({
+                          variant: "destructive",
+                          description: res.message,
+                        });
+                      }
+                      router.refresh();
+                    });
+                  });
+                }}
+              />
             </div>
           )}
         </div>

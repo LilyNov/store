@@ -12,6 +12,7 @@ const HomePage = async () => {
         title="Newest Arrivals"
         data={latestProducts}
         limit={LATEST_PRODUCTS_LIMIT}
+        variant="large"
       />
     </div>
   );
