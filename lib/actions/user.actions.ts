@@ -47,23 +47,31 @@ export async function updateUserAddress(
   userId?: string | null
 ) {
   try {
-    const currentUser = await prisma.user.findUnique({
-      where: { id: userId! },
-    });
+    if (!userId) throw new Error("Missing user id");
 
-    if (!currentUser) throw new Error("User not found");
+    // validate incoming shipping address
+    const shippingAddress = shippingAddressSchema.parse(data);
 
-    const address = shippingAddressSchema.parse(data);
+    // find existing address record (first one for user)
+    const existing = await prisma.address.findFirst({ where: { userId } });
 
-    await prisma.user.update({
-      where: { id: currentUser.id },
-      data: { address },
-    });
+    if (existing) {
+      await prisma.address.update({
+        where: { id: existing.id },
+        data: {
+          shippingAddress: { ...shippingAddress, isPrimary: true },
+        },
+      });
+    } else {
+      await prisma.address.create({
+        data: {
+          userId,
+          shippingAddress: { ...shippingAddress, isPrimary: true },
+        },
+      });
+    }
 
-    return {
-      success: true,
-      message: "User updated successfully",
-    };
+    return { success: true, message: "Address saved" };
   } catch (error) {
     return { success: false, message: formatError(error) };
   }

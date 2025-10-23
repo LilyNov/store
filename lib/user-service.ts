@@ -61,3 +61,12 @@ export async function getUserFromPrisma(userId: string) {
     return null;
   }
 }
+
+export async function getUserAddress(userId: string) {
+  try {
+    return await prisma.address.findFirst({ where: { userId } });
+  } catch (error) {
+    console.error("Error retrieving user address:", error);
+    return null;
+  }
+}

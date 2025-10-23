@@ -18,9 +18,9 @@ model Product {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String
   slug        String   @unique(map: "product_slug_idx")
-  category    String
   images      String[]
-  brand       String
+  categoryId  String   @db.Uuid
+  brandId     String   @db.Uuid
   description String
   stock       Int
   price       Decimal  @default(0) @db.Decimal(12, 2)
@@ -29,6 +29,9 @@ model Product {
   isFeatured  Boolean  @default(false)
   banner      String?
   createdAt   DateTime @default(now()) @db.Timestamp(6)
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict, map: "product_categoryId_category_id_fk")
+  brand    Brand    @relation(fields: [brandId], references: [id], onDelete: Restrict, map: "product_brandId_brand_id_fk")
 }
 
 model User {
@@ -40,13 +43,13 @@ model User {
   blocked       Int       @default(0)
   emailVerified DateTime? @db.Timestamp(6)
   image         String?
-  address       Json?     @db.Json
   paymentMethod String?
   createdAt     DateTime  @default(now()) @db.Timestamp(6)
   updatedAt     DateTime  @updatedAt
   account       Account[]
   session       Session[]
   Cart          Cart[]
+  Address       Address[]
 }
 
 model Account {
@@ -94,4 +97,31 @@ model Cart {
   items         Json[]   @default([]) @db.Json
   savedItems    Json[]   @default([]) @db.Json // items user saved for later
   removedItems  Json[]   @default([]) @db.Json // items removed (with deletedAt metadata)
+}
+
+model Category {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String    @unique(map: "category_name_idx")
+  products  Product[]
+  createdAt DateTime  @default(now()) @db.Timestamp(6)
+  updatedAt DateTime  @updatedAt
+}
+
+model Brand {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String    @unique(map: "brand_name_idx")
+  products  Product[]
+  createdAt DateTime  @default(now()) @db.Timestamp(6)
+  updatedAt DateTime  @updatedAt
+}
+
+// Separate Address table holding shipping & billing JSON payloads
+model Address {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @db.Uuid
+  shippingAddress Json?    @db.Json
+  billingAddress  Json?    @db.Json
+  createdAt       DateTime @default(now()) @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "address_userId_user_id_fk")
 }

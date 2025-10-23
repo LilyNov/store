@@ -10,6 +10,8 @@ export type Product = z.infer<typeof insertProductSchema> & {
   id: string;
   rating: string;
   createdAt: Date;
+  category?: { id: string; name: string };
+  brand?: { id: string; name: string };
 };
 
 export type CartItem = z.infer<typeof cartItemSchema>;
@@ -44,3 +46,25 @@ export interface CartItemStrict extends CartItem {
 }
 
 export type ShippingAddress = z.infer<typeof shippingAddressSchema>;
+
+// Address table JSON shapes
+export interface UserAddressRecord {
+  id: string;
+  userId: string;
+  shippingAddress?: {
+    fullName?: string;
+    streetAddress?: string;
+    city?: string;
+    postalCode?: string;
+    country?: string;
+    lat?: number;
+    lng?: number;
+    isPrimary?: boolean;
+  } | null;
+  billingAddress?: {
+    address?: string; // flexible placeholder
+    isPrimary?: boolean;
+  } | null;
+  createdAt: Date;
+  updatedAt: Date;
+}

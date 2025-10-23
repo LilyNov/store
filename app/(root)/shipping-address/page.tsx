@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { ShippingAddress } from "@/types";
 import { auth0 } from "@/lib/auth0";
 import { decodeJwt } from "@/lib/jwt-utils";
-import { getUserFromPrisma } from "@/lib/user-service";
+import { getUserAddress } from "@/lib/user-service";
 import ShippingAddressForm from "./shipping-address-form";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -50,11 +50,10 @@ const ShippingAddressPage = async () => {
   const effectiveUserId =
     userIdFromToken || decodedToken?.sub || session.user.sub;
 
-  const dBUser = await getUserFromPrisma(effectiveUserId);
-
+  const addressRecord = await getUserAddress(effectiveUserId);
   return (
     <ShippingAddressForm
-      address={dBUser?.address as ShippingAddress}
+      address={(addressRecord?.shippingAddress as ShippingAddress) || null}
       userId={effectiveUserId || null}
     />
   );

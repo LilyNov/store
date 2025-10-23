@@ -1,5 +1,5 @@
-import { PrismaClient } from "@prisma/client";
-import sampleData from "./sample-data";
+const { PrismaClient } = require("@prisma/client");
+const sampleData = require("./sample-data").default || require("./sample-data");
 
 async function main() {
   const prisma = new PrismaClient();
@@ -10,10 +10,11 @@ async function main() {
   await prisma.session.deleteMany();
   await prisma.verificationToken.deleteMany();
   await prisma.user.deleteMany();
-  // Category & Brand cleanup will occur after client regen
-  // Seed unique categories & brands
-  const categoryMap: Record<string, string> = {}; // name -> id
-  const brandMap: Record<string, string> = {}; // name -> id
+  await prisma.category.deleteMany();
+  await prisma.brand.deleteMany();
+
+  const categoryMap = {}; // name -> id
+  const brandMap = {}; // name -> id
 
   for (const p of sampleData.products) {
     if (!categoryMap[p.category]) {
@@ -26,7 +27,6 @@ async function main() {
     }
   }
 
-  // Insert products referencing categoryId & brandId
   await prisma.product.createMany({
     data: sampleData.products.map((p) => ({
       name: p.name,
@@ -44,10 +44,10 @@ async function main() {
     })),
   });
 
-  // Insert products referencing categoryId & brandId
-  // (Removed legacy createMany call before category/brand creation)
-
-  console.log("Database seeded successfully");
+  console.log("Seed completed");
 }
 
-main();
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

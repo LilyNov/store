@@ -3,9 +3,9 @@ CREATE TABLE "Product" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
-    "category" TEXT NOT NULL,
     "images" TEXT[],
-    "brand" TEXT NOT NULL,
+    "categoryId" UUID NOT NULL,
+    "brandId" UUID NOT NULL,
     "description" TEXT NOT NULL,
     "stock" INTEGER NOT NULL,
     "price" DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -28,7 +28,6 @@ CREATE TABLE "User" (
     "blocked" INTEGER NOT NULL DEFAULT 0,
     "emailVerified" TIMESTAMP(6),
     "image" TEXT,
-    "address" JSON,
     "paymentMethod" TEXT,
     "createdAt" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -81,8 +80,42 @@ CREATE TABLE "Cart" (
     "updatedAt" TIMESTAMP(6) NOT NULL,
     "createdAt" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "items" JSON[] DEFAULT ARRAY[]::JSON[],
+    "savedItems" JSON[] DEFAULT ARRAY[]::JSON[],
+    "removedItems" JSON[] DEFAULT ARRAY[]::JSON[],
 
     CONSTRAINT "Cart_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Category" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "name" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Category_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Brand" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "name" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Brand_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Address" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "userId" UUID NOT NULL,
+    "shippingAddress" JSON,
+    "billingAddress" JSON,
+    "createdAt" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Address_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -90,6 +123,18 @@ CREATE UNIQUE INDEX "product_slug_idx" ON "Product"("slug");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "user_email_idx" ON "User"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "category_name_idx" ON "Category"("name");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "brand_name_idx" ON "Brand"("name");
+
+-- AddForeignKey
+ALTER TABLE "Product" ADD CONSTRAINT "product_categoryId_category_id_fk" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Product" ADD CONSTRAINT "product_brandId_brand_id_fk" FOREIGN KEY ("brandId") REFERENCES "Brand"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Account" ADD CONSTRAINT "account_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
@@ -99,3 +144,6 @@ ALTER TABLE "Session" ADD CONSTRAINT "session_userId_user_id_fk" FOREIGN KEY ("u
 
 -- AddForeignKey
 ALTER TABLE "Cart" ADD CONSTRAINT "cart_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "Address" ADD CONSTRAINT "address_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
