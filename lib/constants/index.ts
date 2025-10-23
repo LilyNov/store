@@ -11,3 +11,11 @@ export const signInDefaultValues = {
   email: "",
   password: "",
 };
+
+export const shippingAddressDefaultValues = {
+  fullName: "Lily",
+  streetAddress: "123 Main St",
+  city: "Woburn",
+  postalCode: "12345",
+  country: "UK",
+};

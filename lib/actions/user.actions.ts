@@ -1,7 +1,10 @@
 "use server";
 
 import { prisma } from "@/db/prisma";
+import { ShippingAddress } from "@/types";
 import { revalidatePath } from "next/cache";
+import { shippingAddressSchema } from "../validators";
+import { formatError } from "../utils";
 
 // fetch all users from my Prisma DB
 export async function getUsers() {
@@ -36,5 +39,32 @@ export async function toggleUserBlocked(userId: string, currentStatus: number) {
   } catch (error) {
     console.error("Error toggling user blocked status:", error);
     return { error: "Failed to update user status" };
+  }
+}
+
+export async function updateUserAddress(
+  data: ShippingAddress,
+  userId?: string | null
+) {
+  try {
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId! },
+    });
+
+    if (!currentUser) throw new Error("User not found");
+
+    const address = shippingAddressSchema.parse(data);
+
+    await prisma.user.update({
+      where: { id: currentUser.id },
+      data: { address },
+    });
+
+    return {
+      success: true,
+      message: "User updated successfully",
+    };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
   }
 }

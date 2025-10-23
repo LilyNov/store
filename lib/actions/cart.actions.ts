@@ -150,7 +150,6 @@ type AddItemInput = { productId: string } | Pick<CartItem, "productId">;
 // --- Internal helper: claim or merge a session cart into a user cart ---
 async function claimOrMergeCart(userId: string, sessionCartId: string) {
   if (!userId || !sessionCartId) return null;
-  const cookieStore = await cookies();
   const sessionOnly = await prisma.cart.findFirst({
     where: { sessionCartId, userId: null },
   });
@@ -162,11 +161,14 @@ async function claimOrMergeCart(userId: string, sessionCartId: string) {
       where: { id: sessionOnly.id },
       data: { userId },
     });
-    cookieStore.delete("sessionCartId");
+    // NOTE: Avoid deleting cookie here because this function can run during a Server Component render
+    // which is not an allowed mutation context. A separate server action should clear it after merge.
+    // cookieStore.delete("sessionCartId"); // deferred
     return claimed;
   }
   if (!sessionOnly && userCart) {
-    cookieStore.delete("sessionCartId"); // stale cookie
+    // Deferred cookie cleanup (see note above)
+    // cookieStore.delete("sessionCartId");
     return userCart;
   }
   if (sessionOnly && userCart && sessionOnly.id !== userCart.id) {
@@ -202,7 +204,8 @@ async function claimOrMergeCart(userId: string, sessionCartId: string) {
       },
     });
     await prisma.cart.delete({ where: { id: sessionOnly.id } });
-    cookieStore.delete("sessionCartId");
+    // Deferred cookie cleanup (see note above)
+    // cookieStore.delete("sessionCartId");
     return await prisma.cart.findUnique({ where: { id: userCart.id } });
   }
   return null;
@@ -294,8 +297,6 @@ export async function addItemToCart(data: AddItemInput): Promise<ActionResult> {
     return { success: false, message: formatError(e) };
   }
 }
-
-// ...existing code...
 
 export async function mergeSessionCartIntoUserCart(): Promise<ActionResult> {
   try {

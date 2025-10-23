@@ -2,6 +2,7 @@ import {
   insertCartSchema,
   insertProductSchema,
   cartItemSchema,
+  shippingAddressSchema,
 } from "@/lib/validators";
 import { z } from "zod";
 
@@ -41,3 +42,5 @@ export interface CartItemStrict extends CartItem {
   saved?: boolean;
   deletedAt?: Date;
 }
+
+export type ShippingAddress = z.infer<typeof shippingAddressSchema>;

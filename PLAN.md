@@ -35,7 +35,14 @@
    - log out
 
 6. Cart Improvements:
+
    - estimated shipping ✅
    - leave subtotal for items only ✅
    - fix UI for cart (check Amazon) ✅
    - ### update brand and category in model Product to be enum and then assign different values what I have and will have
+
+     use uuid()
+
+   7. New table Address
+      - with userId and primary shipping address - boolean, primary billing address - boolean
+      - remove address from the User table
