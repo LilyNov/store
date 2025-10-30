@@ -27,22 +27,26 @@ const ShippingAddressPage = async () => {
   // If unauthenticated, show a friendly login request instead of redirecting immediately.
   if (!session || !session.user) {
     return (
-      <div className="max-w-md mx-auto py-10 space-y-6">
-        <h1 className="h2-bold">Please log in</h1>
-        <p className="text-sm text-muted-foreground">
-          You need to be authenticated to enter your shipping address.
-        </p>
-        <div className="flex gap-3">
-          <Button asChild variant="outline">
-            <Link href="/auth/login?returnTo=/shipping-address">Log in</Link>
-          </Button>
-          <Button asChild>
-            <Link href="/auth/login?screen_hint=signup&returnTo=/shipping-address">
-              Sign up
-            </Link>
-          </Button>
+      <>
+        <CheckoutSteps current={0} />
+
+        <div className="max-w-md mx-auto py-10 space-y-6">
+          <h1 className="h2-bold">Please log in</h1>
+          <p className="text-sm text-muted-foreground">
+            You need to be authenticated to enter your shipping address.
+          </p>
+          <div className="flex gap-3">
+            <Button asChild variant="outline">
+              <Link href="/auth/login?returnTo=/shipping-address">Log in</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/auth/login?screen_hint=signup&returnTo=/shipping-address">
+                Sign up
+              </Link>
+            </Button>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 

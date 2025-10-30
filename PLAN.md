@@ -44,5 +44,12 @@
      use uuid()
 
    7. New table Address
+
       - with userId and primary shipping address - boolean, primary billing address - boolean
       - remove address from the User table
+
+   8. "Continue as a guest" button if the user is not logged in and in the very end ask the user "Do you wanna save the data (...bla bla) - try to make the user sign up/log in to save the order history and so on
+
+   9. If the User wasn't logged in - don't merge the cart, save prev items as ?Saved for later'
+
+   10. Insure I save the successful payment in the Db!!!

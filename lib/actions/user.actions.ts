@@ -3,8 +3,11 @@
 import { prisma } from "@/db/prisma";
 import { ShippingAddress } from "@/types";
 import { revalidatePath } from "next/cache";
-import { shippingAddressSchema } from "../validators";
+import { paymentMethodSchema, shippingAddressSchema } from "../validators";
 import { formatError } from "../utils";
+import { z } from "zod";
+import { getAuth0UserMetadata } from "../auth0-management";
+import { auth0 } from "../auth0";
 
 // fetch all users from my Prisma DB
 export async function getUsers() {
@@ -82,6 +85,34 @@ export async function updateUserAddress(
     }
 
     return { success: true, message: "Address saved" };
+  } catch (error) {
+    return { success: false, message: formatError(error) };
+  }
+}
+
+export async function updateUserPaymentMethod(
+  data: z.infer<typeof paymentMethodSchema>
+) {
+  try {
+    const session = await auth0.getSession();
+    const userSessionId = session?.user.sub;
+    if (!userSessionId) return { success: true, message: "User not logged in" };
+
+    const meta = await getAuth0UserMetadata(userSessionId);
+    const userId = meta?.user_metadata?.user_id;
+    if (!userId) return { success: false, message: "User id missing" };
+
+    const paymentMethod = paymentMethodSchema.parse(data);
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { paymentMethod: paymentMethod.type },
+    });
+
+    return {
+      success: true,
+      message: "User updated successfully",
+    };
   } catch (error) {
     return { success: false, message: formatError(error) };
   }
