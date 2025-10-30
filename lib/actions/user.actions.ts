@@ -52,6 +52,16 @@ export async function updateUserAddress(
     // validate incoming shipping address
     const shippingAddress = shippingAddressSchema.parse(data);
 
+    // Ensure user exists to satisfy FK constraint
+    const userExists = await prisma.user.findUnique({ where: { id: userId } });
+    if (!userExists) {
+      // Attempt to sync using a fabricated minimal user object (requires email or we bail)
+      // Since we only have userId here, we cannot reconstruct Auth0 profile; return descriptive error.
+      throw new Error(
+        "User does not exist; please refresh session so we can sync with database"
+      );
+    }
+
     // find existing address record (first one for user)
     const existing = await prisma.address.findFirst({ where: { userId } });
 

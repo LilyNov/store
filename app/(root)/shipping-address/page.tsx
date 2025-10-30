@@ -4,10 +4,15 @@ import { redirect } from "next/navigation";
 import { ShippingAddress } from "@/types";
 import { auth0 } from "@/lib/auth0";
 import { decodeJwt } from "@/lib/jwt-utils";
-import { getUserAddress } from "@/lib/user-service";
+import {
+  getUserAddress,
+  syncUserWithDatabase,
+  getUserFromPrisma,
+} from "@/lib/user-service";
 import ShippingAddressForm from "./shipping-address-form";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import CheckoutSteps from "@/components/shared/checkout-steps";
 
 export const metadata: Metadata = {
   title: "Shipping Address",
@@ -44,18 +49,31 @@ const ShippingAddressPage = async () => {
   // Authenticated flow
   const idToken = session.tokenSet?.idToken;
   const decodedToken = idToken ? decodeJwt(idToken) : null;
-  const userIdFromToken = decodedToken?.user_id;
+  const userIdFromToken = decodedToken?.user_id; // expected to be our DB UUID custom claim
 
-  // Fallback: if custom claim missing, consider using user.sub
-  const effectiveUserId =
-    userIdFromToken || decodedToken?.sub || session.user.sub;
+  // If token lacks our DB user id claim, sync the Auth0 user now to obtain/create DB record
+  const effectiveUserId = userIdFromToken
+    ? userIdFromToken
+    : await syncUserWithDatabase(session.user);
 
-  const addressRecord = await getUserAddress(effectiveUserId);
+  // Ensure the user still exists (could have been lost after a DB reset)
+  const existingUser = await getUserFromPrisma(effectiveUserId);
+  let finalUserId = effectiveUserId;
+  if (!existingUser) {
+    // Re-sync to recreate the user record
+    finalUserId = await syncUserWithDatabase(session.user);
+  }
+
+  const addressRecord = await getUserAddress(finalUserId);
+
   return (
-    <ShippingAddressForm
-      address={(addressRecord?.shippingAddress as ShippingAddress) || null}
-      userId={effectiveUserId || null}
-    />
+    <>
+      <CheckoutSteps current={1} />
+      <ShippingAddressForm
+        address={(addressRecord?.shippingAddress as ShippingAddress) || null}
+        userId={finalUserId || null}
+      />
+    </>
   );
 };
 

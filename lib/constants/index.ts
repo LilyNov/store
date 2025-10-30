@@ -13,9 +13,9 @@ export const signInDefaultValues = {
 };
 
 export const shippingAddressDefaultValues = {
-  fullName: "Lily",
-  streetAddress: "123 Main St",
-  city: "Woburn",
-  postalCode: "12345",
-  country: "UK",
+  fullName: "",
+  streetAddress: "",
+  city: "",
+  postalCode: "",
+  country: "",
 };

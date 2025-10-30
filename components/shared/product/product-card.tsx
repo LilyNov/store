@@ -115,8 +115,13 @@ const ProductCard = ({
       <CardContent
         className={clsx("grid gap-2", compact ? "p-2" : large ? "p-5" : "p-4")}
       >
-        {product.brand && !compact && (
-          <div className="text-xs opacity-70">{product.brand}</div>
+        {!compact && (
+          <div className="text-xs opacity-70 flex gap-1">
+            {/* {product.brand?.name && <span>{product.brand.name}</span>} */}
+            {product.category?.name && (
+              <span className="opacity-60">{product.category.name}</span>
+            )}
+          </div>
         )}
         <Link href={`/product/${product.slug}`}>
           <h2
