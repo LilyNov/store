@@ -81,4 +81,75 @@ export const shippingAddressSchema = z.object({
   lng: z.number().optional(),
 });
 
-// (Removed paymentMethodSchema: Stripe-only flow uses implicit provider; no user selection needed.)
+// Address (top-level table) creation schema
+export const insertAddressSchema = z.object({
+  userId: z.string().uuid("User id must be a valid UUID"),
+  shippingAddress: shippingAddressSchema.optional(),
+  billingAddress: shippingAddressSchema.optional(),
+});
+
+// Order Item (already defined below) stays the same; combine for order creation
+// Updated Order creation schema to reflect new DB structure (addressId + optional snapshot)
+export const insertOrderSchema = z.object({
+  userId: z.string().uuid("User id must be a valid UUID"),
+  addressId: z.string().uuid("Address id must be a valid UUID"),
+  // Monetary fields stored as Decimal in DB; validated as formatted strings here
+  itemsPrice: currency,
+  shippingPrice: currency,
+  taxPrice: currency,
+  totalPrice: currency,
+  // We store a snapshot JSON separate from relational Address
+  shippingAddressSnapshot: shippingAddressSchema.optional(),
+  orderItems: z
+    .array(
+      z.object({
+        productId: z.string().uuid("Product id must be a valid UUID"),
+        slug: z.string().min(1, "Slug required"),
+        image: z.string().min(1, "Image required"),
+        name: z.string().min(1, "Name required"),
+        price: currency,
+        qty: z.number().int().positive("Quantity must be > 0"),
+      })
+    )
+    .min(1, "Order must contain at least one item"),
+  isPaid: z.boolean().optional(),
+  paidAt: z.date().optional(),
+});
+
+export const insertOrderItemSchema = z.object({
+  productId: z.string().uuid("Product id must be a valid UUID"),
+  slug: z.string().min(1, "Slug required"),
+  image: z.string().min(1, "Image required"),
+  name: z.string().min(1, "Name required"),
+  price: currency,
+  qty: z.number().int().positive("Quantity must be > 0"),
+});
+
+// Payment table validators (Stripe-only initial implementation)
+export const paymentStatusEnum = z.enum([
+  "PENDING",
+  "REQUIRES_ACTION",
+  "AUTHORIZED",
+  "SUCCEEDED",
+  "FAILED",
+  "CANCELED",
+  "REFUNDED",
+  "PARTIALLY_REFUNDED",
+]);
+
+export const insertPaymentSchema = z.object({
+  orderId: z.string().uuid("Order id must be a valid UUID"),
+  userId: z.string().uuid("User id must be a valid UUID"),
+  amount: currency,
+  currency: z.string().min(3, "Currency code must be >= 3 characters"),
+  stripePaymentIntentId: z.string().optional(),
+  stripeCheckoutSessionId: z.string().optional(),
+  status: paymentStatusEnum.default("PENDING"),
+  rawPayload: z.any().optional(),
+});
+
+export const updatePaymentStatusSchema = z.object({
+  paymentId: z.string().uuid("Payment id must be a valid UUID"),
+  status: paymentStatusEnum,
+  rawPayload: z.any().optional(), // latest event payload snapshot
+});

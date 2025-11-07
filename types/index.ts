@@ -3,6 +3,12 @@ import {
   insertProductSchema,
   cartItemSchema,
   shippingAddressSchema,
+  insertAddressSchema,
+  insertOrderSchema,
+  insertOrderItemSchema,
+  insertPaymentSchema,
+  updatePaymentStatusSchema,
+  paymentStatusEnum,
 } from "@/lib/validators";
 import { z } from "zod";
 
@@ -47,6 +53,20 @@ export interface CartItemStrict extends CartItem {
 
 export type ShippingAddress = z.infer<typeof shippingAddressSchema>;
 
+// Address create input
+export type InsertAddressInput = z.infer<typeof insertAddressSchema>;
+
+// Order and related
+export type InsertOrderInput = z.infer<typeof insertOrderSchema>;
+export type InsertOrderItemInput = z.infer<typeof insertOrderItemSchema>;
+
+// Payment related
+export type PaymentStatus = z.infer<typeof paymentStatusEnum>;
+export type InsertPaymentInput = z.infer<typeof insertPaymentSchema>;
+export type UpdatePaymentStatusInput = z.infer<
+  typeof updatePaymentStatusSchema
+>;
+
 // Address table JSON shapes
 export interface UserAddressRecord {
   id: string;
@@ -67,4 +87,39 @@ export interface UserAddressRecord {
   } | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Payment table record (simplified mirror of Prisma model)
+export interface PaymentRecord {
+  id: string;
+  orderId: string;
+  userId: string;
+  provider: string;
+  stripePaymentIntentId?: string | null;
+  stripeCheckoutSessionId?: string | null;
+  status: PaymentStatus;
+  amount: string; // keep as string to match validated input formatting
+  currency: string;
+  rawPayload?: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Order domain shape (after creation) – aligns with schema
+export interface OrderRecord {
+  id: string;
+  userId: string;
+  addressId: string;
+  shippingAddressSnapshot?: ShippingAddress | null;
+  itemsPrice: string;
+  shippingPrice: string;
+  taxPrice: string;
+  totalPrice: string;
+  isPaid: boolean;
+  paidAt?: Date | null;
+  isDelivered: boolean;
+  deliveredAt?: Date | null;
+  createdAt: Date;
+  orderItems: InsertOrderItemInput[]; // or a dedicated OrderItemRecord if needed later
+  payment?: PaymentRecord | null;
 }
