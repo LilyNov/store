@@ -11,6 +11,21 @@ export interface DbUser {
   emailVerified: Date | null;
   image: string | null;
   address: JsonValue;
-  paymentMethod: string | null;
+  updatedAt: Date;
+}
+
+export interface PaymentRecord {
+  id: string;
+  userId: string | null;
+  sessionCartId: string | null;
+  items: unknown; // Json snapshot from Prisma
+  amount: string; // formatted string when exposed to UI
+  currency: string;
+  stripePaymentIntentId: string | null;
+  stripeChargeId: string | null;
+  status: string; // pending | succeeded | failed | canceled
+  receiptUrl: string | null;
+  paidAt: Date | null;
+  createdAt: Date;
   updatedAt: Date;
 }

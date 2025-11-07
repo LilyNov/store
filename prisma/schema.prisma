@@ -5,8 +5,7 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -30,8 +29,9 @@ model Product {
   banner      String?
   createdAt   DateTime @default(now()) @db.Timestamp(6)
 
-  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict, map: "product_categoryId_category_id_fk")
-  brand    Brand    @relation(fields: [brandId], references: [id], onDelete: Restrict, map: "product_brandId_brand_id_fk")
+  category  Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict, map: "product_categoryId_category_id_fk")
+  brand     Brand       @relation(fields: [brandId], references: [id], onDelete: Restrict, map: "product_brandId_brand_id_fk")
+  OrderItem OrderItem[]
 }
 
 model User {
@@ -43,13 +43,14 @@ model User {
   blocked       Int       @default(0)
   emailVerified DateTime? @db.Timestamp(6)
   image         String?
-  paymentMethod String?
   createdAt     DateTime  @default(now()) @db.Timestamp(6)
   updatedAt     DateTime  @updatedAt
   account       Account[]
   session       Session[]
   Cart          Cart[]
   Address       Address[]
+  Payment       Payment[]
+  Order         Order[]
 }
 
 model Account {
@@ -124,4 +125,66 @@ model Address {
   createdAt       DateTime @default(now()) @db.Timestamp(6)
   updatedAt       DateTime @updatedAt
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "address_userId_user_id_fk")
+}
+
+// Payment records capture successful (and failed) Stripe payment attempts
+// We snapshot items & cart context to preserve historical data even if products change later.
+model Payment {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                  String?   @db.Uuid
+  sessionCartId           String?
+  items                   Json      @db.Json // snapshot of purchased cart items
+  amount                  Decimal   @db.Decimal(12, 2)
+  currency                String    @default("usd")
+  stripePaymentIntentId   String?   @unique
+  stripeCheckoutSessionId String?   @unique
+  stripeChargeId          String?
+  status                  String    @default("pending") // pending | succeeded | failed | canceled
+  receiptUrl              String?
+  paidAt                  DateTime?
+  createdAt               DateTime  @default(now()) @db.Timestamp(6)
+  updatedAt               DateTime  @updatedAt
+  user                    User?     @relation(fields: [userId], references: [id], onDelete: SetNull, map: "payment_userId_user_id_fk")
+  orders                  Order[]
+}
+
+// Order represents a finalized purchase (Stripe-only payment method captured).
+// We snapshot shippingAddress and line items as JSON / relational rows for historical integrity.
+model Order {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String?     @db.Uuid // nullable to allow guest checkout
+  shippingAddress Json        @db.Json // snapshot of shipping address at time of order
+  paymentMethod   String      @default("Stripe")
+  paymentResult   Json?       @db.Json // details from Stripe (e.g. charges, receipt) for convenience
+  itemsPrice      Decimal     @db.Decimal(12, 2)
+  shippingPrice   Decimal     @db.Decimal(12, 2)
+  taxPrice        Decimal     @db.Decimal(12, 2)
+  totalPrice      Decimal     @db.Decimal(12, 2)
+  isPaid          Boolean     @default(false)
+  paidAt          DateTime?   @db.Timestamp(6)
+  isDelivered     Boolean     @default(false)
+  deliveredAt     DateTime?   @db.Timestamp(6)
+  createdAt       DateTime    @default(now()) @db.Timestamp(6)
+  updatedAt       DateTime    @updatedAt
+  user            User?       @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "order_userId_user_id_fk")
+  orderItems      OrderItem[]
+  paymentId       String?     @db.Uuid
+  payment         Payment?    @relation(fields: [paymentId], references: [id], onDelete: SetNull, map: "order_paymentId_payment_id_fk")
+}
+
+// Individual line items for an order, referencing Product at the time of purchase.
+// We avoid cascading delete from Product to preserve historical order data (Restrict).
+model OrderItem {
+  orderId   String   @db.Uuid
+  productId String   @db.Uuid
+  qty       Int
+  price     Decimal  @db.Decimal(12, 2) // unit price snapshot
+  name      String // product name snapshot
+  slug      String // product slug snapshot
+  image     String // cover image snapshot
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "orderItems_orderId_order_id_fk")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "orderItems_productId_product_id_fk")
+  createdAt DateTime @default(now()) @db.Timestamp(6)
+
+  @@id([orderId, productId], map: "orderItems_orderId_productId_pk")
 }
