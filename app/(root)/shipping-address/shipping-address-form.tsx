@@ -56,7 +56,7 @@ const ShippingAddressForm = ({
         return;
       }
 
-      router.push("/payment-method");
+      router.push("/place-order");
     });
   };
 
