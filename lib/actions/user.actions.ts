@@ -2,11 +2,26 @@
 
 import { prisma } from "@/db/prisma";
 import { ShippingAddress } from "@/types";
+import { auth0 } from "@/lib/auth0";
+import { decodeJwt } from "@/lib/jwt-utils";
 import { revalidatePath } from "next/cache";
 import { shippingAddressSchema } from "../validators";
 import { formatError } from "../utils";
-// Removed payment method update (Stripe-only). z import not needed now.
-// Removed Auth0 metadata/payment method usage; imports deleted.
+
+// Returns { userId, sessionUser, created } where created indicates a sync occurred.
+export async function getUserId() {
+  try {
+    const session = await auth0.getSession();
+    if (!session || !session.user) return { userId: null };
+    const idToken = session.tokenSet?.idToken;
+    const decoded = idToken ? decodeJwt(idToken) : null;
+    const claimId = decoded?.user_id as string | undefined;
+    return { userId: claimId || null };
+  } catch (err) {
+    console.warn("getUserId failed", err);
+    return { userId: null };
+  }
+}
 
 // fetch all users from my Prisma DB
 export async function getUsers() {
@@ -21,6 +36,10 @@ export async function getUsers() {
     console.error("Error fetching users:", error);
     return { error: "Failed to fetch users" };
   }
+}
+
+export async function getUserById(id: string) {
+  return prisma.user.findUnique({ where: { id } });
 }
 
 // toggle user blocked status and update in Prisma DB
@@ -88,5 +107,3 @@ export async function updateUserAddress(
     return { success: false, message: formatError(error) };
   }
 }
-
-// updateUserPaymentMethod removed: user has no configurable payment method field anymore.

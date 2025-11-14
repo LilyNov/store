@@ -10,7 +10,6 @@ import { ControllerRenderProps } from "react-hook-form";
 import { shippingAddressDefaultValues } from "@/lib/constants";
 import { useToast } from "@/hooks/use-toast";
 import { useTransition } from "react";
-// import CheckoutSteps from "@/components/shared/checkout-steps";
 
 import {
   Form,
@@ -43,8 +42,6 @@ const ShippingAddressForm = ({
   const onSubmit: SubmitHandler<z.infer<typeof shippingAddressSchema>> = async (
     values
   ) => {
-    console.log("USERID", userId);
-
     startTransition(async () => {
       const res = await updateUserAddress(values, userId);
 
