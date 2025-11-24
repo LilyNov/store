@@ -18,6 +18,7 @@ import type { ShippingAddress } from "@/types";
 import AuthUserGate from "@/components/shared/auth-user-context";
 import { getUserAddress } from "@/lib/user-service";
 import { computeOrderTotals } from "@/lib/order-totals";
+import Checkout from "@/components/checkout";
 
 export const metadata = {
   title: "Place Order",
@@ -138,6 +139,7 @@ const placeOrderPage = async () => {
                       <span>Total</span>
                       <span>{formatCurrency(totalsRaw.totalPrice)}</span>
                     </div>
+                    <Checkout />
                     {/* <Button className="w-full mt-2" disabled>
                       Place Order (Stripe TBD)
                     </Button> */}

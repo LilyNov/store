@@ -19,5 +19,3 @@ export const shippingAddressDefaultValues = {
   postalCode: "",
   country: "",
 };
-
-// Removed PAYMENT_METHODS & DEFAULT_PAYMENT_METHOD (Stripe-only flow)
