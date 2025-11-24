@@ -8,8 +8,12 @@ import AddToCart from "@/components/shared/product/add-to-cart";
 import { getMyCart } from "@/lib/actions/cart.actions";
 import React from "react";
 
-const ProductDetailsPage = async ({ params }: { params: { slug: string } }) => {
-  const { slug } = params;
+interface ProductPageProps {
+  params: Promise<{ slug: string }>;
+}
+
+const ProductDetailsPage = async ({ params }: ProductPageProps) => {
+  const { slug } = await params;
 
   const product = await getProductBySlug(slug);
   if (!product) notFound();
